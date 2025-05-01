@@ -1,43 +1,44 @@
+<!-- MainLayout.vue -->
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
-      <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
+  <q-layout view="hHh lpR fFf">
+    <q-header elevated class="bg-dark">
+      <q-toolbar class="q-px-xl">
+        <q-avatar square size="lg">
+          <img src="https://cdn.quasar.dev/logo-v2/svg/logo-mono-white.svg" />
+        </q-avatar>
 
-        <q-toolbar-title>
-          Quasar App
+        <q-toolbar-title class="text-h5 text-weight-bold text-white">
+          PiVision
         </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <q-space />
+
+        <div class="row items-center q-gutter-xl">
+          <q-tabs inline-label active-color="accent" indicator-color="accent">
+            <q-route-tab
+              to="/live-stream"
+              label="Live Stream"
+              icon="live_tv"
+              content-class="text-white"
+            />
+            <q-route-tab
+              to="/saved-videos"
+              label="Media Library"
+              icon="video_library"
+              content-class="text-white"
+            />
+          </q-tabs>
+
+          <q-btn
+            round
+            flat
+            icon="dark_mode"
+            color="white"
+            @click="toggleDarkMode"
+          />
+        </div>
       </q-toolbar>
     </q-header>
-
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
-      </q-list>
-    </q-drawer>
 
     <q-page-container>
       <router-view />
@@ -46,61 +47,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import EssentialLink, { EssentialLinkProps } from 'components/EssentialLink.vue';
+import { useQuasar } from 'quasar';
 
-defineOptions({
-  name: 'MainLayout'
-});
+const $q = useQuasar();
 
-const linksList: EssentialLinkProps[] = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
-  }
-];
-
-const leftDrawerOpen = ref(false);
-
-function toggleLeftDrawer () {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
-}
+const toggleDarkMode = () => {
+  $q.dark.toggle();
+};
 </script>
+
+<style lang="scss">
+.q-header {
+  background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.q-tab__icon {
+  font-size: 1.4rem;
+}
+</style>
