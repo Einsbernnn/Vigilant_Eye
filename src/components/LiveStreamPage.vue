@@ -34,32 +34,8 @@
         </div>
       </div>
 
-      <div class="control-panel q-mt-lg">
-        <div class="row items-center q-gutter-lg">
-          <q-toggle
-            v-model="audioEnabled"
-            checked-icon="volume_up"
-            unchecked-icon="volume_off"
-            color="accent"
-            label="Audio"
-            size="lg"
-          />
-
-          <q-select
-            v-model="selectedQuality"
-            :options="qualityOptions"
-            label="Quality"
-            outlined
-            dense
-            color="accent"
-            class="quality-select"
-          />
-
-          <q-badge color="grey-8" class="stats">
-            <q-icon name="speed" class="q-mr-xs" />
-            Latency: {{ latency }}ms
-          </q-badge>
-        </div>
+      <div class="placeholder-panel q-mt-lg">
+        <p class="placeholder-text"></p>
       </div>
     </div>
   </q-page>
@@ -69,16 +45,11 @@
 import { ref, reactive } from 'vue';
 
 const streamingActive = ref(false);
-const audioEnabled = ref(false);
-const selectedQuality = ref('1080p');
-const latency = ref(120);
 const connectionStatus = reactive({
   color: 'green',
   icon: 'check_circle',
   text: 'Connected',
 });
-
-const qualityOptions = ['1080p', '720p', '480p'];
 
 const toggleStream = () => {
   streamingActive.value = !streamingActive.value;
@@ -132,21 +103,20 @@ const toggleStream = () => {
   background: rgba(255, 255, 255, 0.1) !important;
 }
 
-.control-panel {
+.placeholder-panel {
   flex: 1;
   padding: 20px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.stats {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 0.9em;
-}
-
-.quality-select {
-  width: 120px;
+.placeholder-text {
+  font-size: 1.2em;
+  color: #ccc;
+  text-align: center;
 }
 </style>
