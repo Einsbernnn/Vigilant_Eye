@@ -3,12 +3,24 @@ import { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
+    redirect: '/live-stream',
+  },
+  {
+    path: '/',
     component: () => import('layouts/MainLayout.vue'),
-    children: [{ path: '', component: () => import('pages/IndexPage.vue') }],
+    children: [
+      {
+        path: 'live-stream',
+        component: () => import('components/LiveStreamPage.vue'),
+      },
+      {
+        path: 'saved-videos',
+        component: () => import('components/SavedVideosPage.vue'),
+      },
+    ],
   },
 
   // Always leave this as last one,
-  // but you can also remove it
   {
     path: '/:catchAll(.*)*',
     component: () => import('pages/ErrorNotFound.vue'),
