@@ -1,4 +1,3 @@
-<!-- LiveStreamPage.vue -->
 <template>
   <q-page class="q-px-xl q-pt-xl">
     <div class="stream-wrapper">

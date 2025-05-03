@@ -1,4 +1,3 @@
-<!-- SavedVideosPage.vue -->
 <template>
   <q-page class="q-px-xl q-pt-xl">
     <div class="gallery-wrapper">
@@ -215,7 +214,7 @@ watch(dateRangeString, (newValue) => {
   }
 });
 
-const videos = ref<Video[]>([]); // Initialize with empty array or fetch from API
+const videos = ref<Video[]>([]);
 
 const filteredVideos = computed(() => {
   return videos.value.filter((video) => {
@@ -246,12 +245,10 @@ const formatDuration = (seconds: number) => {
 };
 
 const downloadVideo = (video: Video) => {
-  // Implement download logic
   console.log('Downloading:', video);
 };
 
 const deleteVideo = (video: Video) => {
-  // Implement delete logic
   console.log('Deleting:', video);
 };
 </script>

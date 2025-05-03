@@ -1,4 +1,3 @@
-<!-- MainLayout.vue -->
 <template>
   <q-layout view="hHh lpR fFf">
     <q-header elevated class="bg-dark">
