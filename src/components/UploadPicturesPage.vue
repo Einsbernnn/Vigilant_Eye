@@ -29,8 +29,7 @@
               push
             >
               <template v-slot:loading>
-                <q-spinner-hourglass class="on-left" />
-                Uploading...
+                <q-spinner-hourglass size="xs" />
               </template>
             </q-btn>
           </div>
@@ -77,17 +76,6 @@
               </q-img>
             </q-card>
           </transition-group>
-
-          <q-banner
-            v-if="uploadSuccess"
-            class="q-mt-md bg-positive text-white"
-            rounded
-          >
-            <template v-slot:avatar>
-              <q-icon name="check_circle" color="white" />
-            </template>
-            Successfully uploaded {{ selectedFiles.length }} images!
-          </q-banner>
         </q-form>
       </q-card>
 
@@ -229,6 +217,11 @@ const handleUpload = async () => {
       icon: 'check_circle',
     });
 
+    // Clear the success message after 5 seconds
+    setTimeout(() => {
+      uploadSuccess.value = false;
+    }, 1000);
+
     await fetchImages();
 
     selectedFiles.value = [];
@@ -339,7 +332,8 @@ onMounted(() => {
 }
 
 .preview-card {
-  width: 120px;
+  width: 140px;
+  position: relative;
   transition: transform 0.3s ease;
 
   &:hover {
@@ -348,6 +342,21 @@ onMounted(() => {
       opacity: 1;
     }
   }
+}
+
+.preview-image {
+  border-radius: 8px;
+  width: 100%; // Ensure the image fits within the card
+  height: auto; // Maintain aspect ratio
+}
+
+.remove-btn {
+  position: absolute; // Position the button relative to the card
+  top: 4px; // Adjust to place it in the top-right corner
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10; // Ensure it appears above the image
 }
 
 .image-card {
