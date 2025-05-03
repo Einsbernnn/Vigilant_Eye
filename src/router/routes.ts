@@ -3,7 +3,7 @@ import { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/live-stream',
+    redirect: '/login',
   },
   {
     path: '/',
@@ -17,10 +17,22 @@ const routes: RouteRecordRaw[] = [
         path: 'saved-videos',
         component: () => import('components/SavedVideosPage.vue'),
       },
+      {
+        path: 'upload-pictures',
+        component: () => import('components/UploadPicturesPage.vue'),
+      },
     ],
   },
-
-  // Always leave this as last one,
+  {
+    path: '/',
+    component: () => import('layouts/AuthLayout.vue'),
+    children: [
+      {
+        path: 'login',
+        component: () => import('pages/LoginPage.vue'),
+      },
+    ],
+  },
   {
     path: '/:catchAll(.*)*',
     component: () => import('pages/ErrorNotFound.vue'),
