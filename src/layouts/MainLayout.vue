@@ -1,9 +1,9 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <q-header elevated class="bg-dark">
-      <q-toolbar class="q-px-xl">
+      <q-toolbar class="q-pl-xl">
         <q-avatar square size="lg">
-          <img src="https://cdn.quasar.dev/logo-v2/svg/logo-mono-white.svg" />
+          <img src="src/assets/rpi-logo.svg" />
         </q-avatar>
 
         <q-toolbar-title class="text-h5 text-weight-bold text-white">
@@ -26,15 +26,24 @@
               icon="video_library"
               content-class="text-white"
             />
+            <q-route-tab
+              to="/upload-pictures"
+              label="Face Recognition"
+              icon="camera_enhance"
+              content-class="text-white"
+            />
           </q-tabs>
+        </div>
 
+        <div class="row items-center q-gutter-sm q-ml-xl">
           <q-btn
             round
             flat
-            icon="dark_mode"
+            :icon="darkModeIcon"
             color="white"
             @click="toggleDarkMode"
           />
+          <q-btn round flat icon="logout" color="white" @click="logout" />
         </div>
       </q-toolbar>
     </q-header>
@@ -42,17 +51,76 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <q-dialog v-model="showLogoutDialog" persistent>
+      <q-card class="logout-dialog-card" style="width: 400px; max-width: 90vw">
+        <q-card-section class="bg-accent text-white q-pa-md">
+          <div class="row items-center no-wrap">
+            <q-icon name="logout" size="sm" class="q-mr-sm" />
+            <div class="text-h6">Confirm Logout</div>
+          </div>
+        </q-card-section>
+
+        <q-separator color="accent" />
+
+        <q-card-section class="q-pt-lg q-pb-md text-body1">
+          <div class="row items-center q-mb-sm">
+            <q-icon name="warning" color="warning" class="q-mr-sm" size="sm" />
+            Are you sure you want to log out?
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md">
+          <q-btn
+            flat
+            label="Cancel"
+            color="grey-7"
+            class="q-px-lg"
+            v-close-popup
+            unelevated
+          />
+          <q-btn
+            label="Logout"
+            color="negative"
+            class="q-px-lg"
+            @click="confirmLogout"
+            push
+            unelevated
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
 import { useQuasar } from 'quasar';
+import { useUserStore } from 'stores/userStore';
+import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
 
 const $q = useQuasar();
+const userStore = useUserStore();
+const router = useRouter();
+const showLogoutDialog = ref(false);
 
 const toggleDarkMode = () => {
   $q.dark.toggle();
 };
+
+const logout = () => {
+  showLogoutDialog.value = true;
+};
+
+const confirmLogout = () => {
+  userStore.logout();
+  router.push('/login');
+  showLogoutDialog.value = false;
+};
+
+const darkModeIcon = computed(() =>
+  $q.dark.isActive ? 'light_mode' : 'dark_mode'
+);
 </script>
 
 <style lang="scss">
