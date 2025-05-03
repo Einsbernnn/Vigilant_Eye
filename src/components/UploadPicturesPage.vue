@@ -180,6 +180,8 @@ import { useQuasar, date } from 'quasar';
 
 const $q = useQuasar();
 
+const API_BASE = 'http://192.168.100.24:5000'; // Ensure no trailing slash
+
 const selectedFiles = ref<File[]>([]);
 const previewImages = ref<string[]>([]);
 const isUploading = ref(false);
@@ -208,7 +210,17 @@ const handleUpload = async () => {
   isUploading.value = true;
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Prepare FormData for file upload
+    const formData = new FormData();
+    selectedFiles.value.forEach((file) => {
+      formData.append('images', file);
+    });
+
+    // Send files to backend endpoint
+    await fetch(`${API_BASE}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
 
     uploadSuccess.value = true;
     $q.notify({
@@ -217,7 +229,6 @@ const handleUpload = async () => {
       icon: 'check_circle',
     });
 
-    // Clear the success message after 5 seconds
     setTimeout(() => {
       uploadSuccess.value = false;
     }, 1000);
@@ -257,13 +268,15 @@ const fetchImages = async () => {
   fetchError.value = null;
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    fetchedImages.value = Array.from({ length: 18 }).map((_, i) => ({
-      url: `https://picsum.photos/300/300?random=${i}`,
-      name: `image-${i + 1}.jpg`,
-      timestamp: Date.now() - Math.random() * 1000000000,
-      size: Math.floor(Math.random() * 5000000) + 1000000,
+    const res = await fetch(`${API_BASE}/api/images`);
+    if (!res.ok) throw new Error('Failed to fetch images');
+    const images = await res.json();
+    // If backend returns a list of filenames (strings)
+    fetchedImages.value = images.map((img: string) => ({
+      url: `${API_BASE}/known_faces/${img}`,
+      name: img,
+      timestamp: null,
+      size: null,
     }));
   } catch (error) {
     fetchError.value =

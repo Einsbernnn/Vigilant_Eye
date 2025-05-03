@@ -2,14 +2,19 @@
   <q-page class="q-px-xl q-pt-xl">
     <div class="stream-wrapper">
       <div class="video-container">
-        <video
+        <!-- Use <img> for MJPEG streams -->
+        <img
+          v-if="streamingActive"
           ref="videoPlayer"
           class="video-element"
           :class="{ 'video-glow': streamingActive }"
-          controls
-          autoplay
-          muted
-        ></video>
+          :src="videoSrc"
+          @error="onStreamError"
+          alt="Live Stream"
+        />
+        <div v-else class="video-element video-placeholder">
+          <span class="placeholder-text">Stream is paused</span>
+        </div>
 
         <div class="overlay-controls">
           <q-btn
@@ -41,9 +46,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 
 const streamingActive = ref(false);
+const videoSrc = computed(() =>
+  streamingActive.value ? 'http://192.168.100.24:5000/video' : ''
+);
 const connectionStatus = reactive({
   color: 'green',
   icon: 'check_circle',
@@ -52,6 +60,22 @@ const connectionStatus = reactive({
 
 const toggleStream = () => {
   streamingActive.value = !streamingActive.value;
+  if (!streamingActive.value) {
+    connectionStatus.color = 'grey';
+    connectionStatus.icon = 'pause_circle';
+    connectionStatus.text = 'Paused';
+  } else {
+    connectionStatus.color = 'green';
+    connectionStatus.icon = 'check_circle';
+    connectionStatus.text = 'Connected';
+  }
+};
+
+const onStreamError = () => {
+  connectionStatus.color = 'red';
+  connectionStatus.icon = 'error';
+  connectionStatus.text = 'Stream Error';
+  streamingActive.value = false;
 };
 </script>
 
@@ -82,6 +106,16 @@ const toggleStream = () => {
   width: 100%;
   height: 70vh;
   object-fit: cover;
+}
+
+.video-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #222;
+  color: #ccc;
+  width: 100%;
+  height: 70vh;
 }
 
 .video-glow {
