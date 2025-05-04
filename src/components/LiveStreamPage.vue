@@ -47,10 +47,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
+import { useSettingsStore } from 'stores/settingsStore';
 
 const streamingActive = ref(false);
+const settingsStore = useSettingsStore();
 const videoSrc = computed(() =>
-  streamingActive.value ? 'http://192.168.100.24:5001/video' : ''
+  streamingActive.value ? settingsStore.liveStreamUrl : ''
 );
 const connectionStatus = reactive({
   color: 'green',

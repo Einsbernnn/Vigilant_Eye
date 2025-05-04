@@ -177,6 +177,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useQuasar, date } from 'quasar';
+import { useSettingsStore } from 'stores/settingsStore';
 
 const $q = useQuasar();
 
@@ -186,6 +187,8 @@ const selectedFiles = ref<File[]>([]);
 const previewImages = ref<string[]>([]);
 const isUploading = ref(false);
 const uploadSuccess = ref(false);
+
+const settingsStore = useSettingsStore();
 
 const handleFileSelect = (files: File[]) => {
   previewImages.value = files.map((file) => URL.createObjectURL(file));
@@ -210,14 +213,12 @@ const handleUpload = async () => {
   isUploading.value = true;
 
   try {
-    // Prepare FormData for file upload
     const formData = new FormData();
     selectedFiles.value.forEach((file) => {
       formData.append('images', file);
     });
 
-    // Send files to backend endpoint
-    await fetch(`${API_BASE}/api/upload`, {
+    await fetch(settingsStore.uploadApiUrl, {
       method: 'POST',
       body: formData,
     });

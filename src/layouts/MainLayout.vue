@@ -43,6 +43,13 @@
             color="white"
             @click="toggleDarkMode"
           />
+          <q-btn
+            round
+            flat
+            icon="settings"
+            color="white"
+            @click="openSettings"
+          />
           <q-btn round flat icon="logout" color="white" @click="logout" />
         </div>
       </q-toolbar>
@@ -90,6 +97,55 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="showSettingsDialog" persistent>
+      <q-card
+        class="settings-dialog-card"
+        style="width: 400px; max-width: 90vw"
+      >
+        <q-card-section class="bg-accent text-white q-pa-md">
+          <div class="row items-center no-wrap">
+            <q-icon name="settings" size="sm" class="q-mr-sm" />
+            <div class="text-h6">Settings</div>
+          </div>
+        </q-card-section>
+
+        <q-separator color="accent" />
+
+        <q-card-section class="q-pt-lg q-pb-md text-body1">
+          <q-input
+            v-model="settings.liveStreamUrl"
+            label="Live Stream URL"
+            filled
+          />
+          <q-input
+            v-model="settings.uploadApiUrl"
+            label="Upload API URL"
+            filled
+            class="q-mt-md"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md">
+          <q-btn
+            flat
+            label="Cancel"
+            color="grey-7"
+            class="q-px-lg"
+            v-close-popup
+            unelevated
+          />
+          <q-btn
+            label="Save"
+            color="positive"
+            class="q-px-lg"
+            @click="saveSettings"
+            push
+            unelevated
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -98,11 +154,17 @@ import { useQuasar } from 'quasar';
 import { useUserStore } from 'stores/userStore';
 import { useRouter } from 'vue-router';
 import { ref, computed } from 'vue';
+import { useSettingsStore } from 'stores/settingsStore';
 
 const $q = useQuasar();
 const userStore = useUserStore();
 const router = useRouter();
 const showLogoutDialog = ref(false);
+const showSettingsDialog = ref(false);
+const settings = ref({
+  liveStreamUrl: '',
+  uploadApiUrl: '',
+});
 
 const toggleDarkMode = () => {
   $q.dark.toggle();
@@ -116,6 +178,28 @@ const confirmLogout = () => {
   userStore.logout();
   router.push('/login');
   showLogoutDialog.value = false;
+};
+
+const openSettings = () => {
+  showSettingsDialog.value = true;
+};
+
+const saveSettings = () => {
+  const settingsStore = useSettingsStore();
+
+  if (settings.value.liveStreamUrl.trim()) {
+    settingsStore.updateLiveStreamUrl(settings.value.liveStreamUrl);
+  } else {
+    settings.value.liveStreamUrl = settingsStore.liveStreamUrl;
+  }
+
+  if (settings.value.uploadApiUrl.trim()) {
+    settingsStore.updateUploadApiUrl(settings.value.uploadApiUrl);
+  } else {
+    settings.value.uploadApiUrl = settingsStore.uploadApiUrl;
+  }
+
+  showSettingsDialog.value = false;
 };
 
 const darkModeIcon = computed(() =>
