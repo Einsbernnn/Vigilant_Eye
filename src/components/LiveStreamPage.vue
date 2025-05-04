@@ -50,7 +50,7 @@ import { ref, reactive, computed } from 'vue';
 
 const streamingActive = ref(false);
 const videoSrc = computed(() =>
-  streamingActive.value ? 'http://192.168.100.24:5000/video' : ''
+  streamingActive.value ? 'http://192.168.100.24:5001/video' : ''
 );
 const connectionStatus = reactive({
   color: 'green',
@@ -67,7 +67,7 @@ const toggleStream = () => {
   } else {
     connectionStatus.color = 'green';
     connectionStatus.icon = 'check_circle';
-    connectionStatus.text = 'Connected';
+    connectionStatus.text = 'Live';
   }
 };
 
