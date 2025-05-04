@@ -175,20 +175,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useQuasar, date } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
 
 const $q = useQuasar();
+const settingsStore = useSettingsStore();
 
-const API_BASE = 'http://192.168.100.24:5000'; // Ensure no trailing slash
+const API_BASE = ref(settingsStore.uploadApiUrl); // Ensure no trailing slash
 
 const selectedFiles = ref<File[]>([]);
 const previewImages = ref<string[]>([]);
 const isUploading = ref(false);
 const uploadSuccess = ref(false);
-
-const settingsStore = useSettingsStore();
 
 const handleFileSelect = (files: File[]) => {
   previewImages.value = files.map((file) => URL.createObjectURL(file));
@@ -218,7 +217,7 @@ const handleUpload = async () => {
       formData.append('images', file);
     });
 
-    await fetch(settingsStore.uploadApiUrl, {
+    await fetch(`${API_BASE.value}/api/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -269,12 +268,12 @@ const fetchImages = async () => {
   fetchError.value = null;
 
   try {
-    const res = await fetch(`${API_BASE}/api/images`);
+    const res = await fetch(`${API_BASE.value}/api/images`);
     if (!res.ok) throw new Error('Failed to fetch images');
     const images = await res.json();
     // If backend returns a list of filenames (strings)
     fetchedImages.value = images.map((img: string) => ({
-      url: `${API_BASE}/known_faces/${img}`,
+      url: `${API_BASE.value}/known_faces/${img}`,
       name: img,
       timestamp: null,
       size: null,
@@ -324,6 +323,13 @@ const deleteImage = (image: GalleryImage) => {
     }
   });
 };
+
+watch(
+  () => settingsStore.uploadApiUrl,
+  (newValue) => {
+    API_BASE.value = newValue;
+  }
+);
 
 onMounted(() => {
   fetchImages();

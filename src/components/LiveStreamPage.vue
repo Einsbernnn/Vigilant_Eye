@@ -52,7 +52,7 @@ import { useSettingsStore } from 'stores/settingsStore';
 const streamingActive = ref(false);
 const settingsStore = useSettingsStore();
 const videoSrc = computed(() =>
-  streamingActive.value ? settingsStore.liveStreamUrl : ''
+  streamingActive.value ? `${settingsStore.liveStreamUrl}/video` : ''
 );
 const connectionStatus = reactive({
   color: 'green',

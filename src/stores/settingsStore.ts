@@ -2,8 +2,8 @@ import { defineStore } from 'pinia';
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    liveStreamUrl: 'http://192.168.100.24:5001/video',
-    uploadApiUrl: 'http://192.168.100.24:5000/api/upload',
+    liveStreamUrl: 'http://192.168.100.24:5001',
+    uploadApiUrl: 'http://192.168.100.24:6000',
   }),
   actions: {
     updateLiveStreamUrl(url: string) {
