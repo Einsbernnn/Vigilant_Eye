@@ -84,89 +84,123 @@
         style="max-width: 1200px; width: 100%"
       >
         <div class="row items-center justify-between q-mb-md">
-          <h5 class="q-ma-none text-weight-bold">Gallery</h5>
+          <h5 class="q-ma-none text-weight-bold">Image Folder</h5>
           <q-btn
             color="accent"
             icon="refresh"
             label="Refresh"
-            @click="fetchImages"
-            :loading="isFetching"
+            @click="fetchFolders"
+            :loading="isFetchingFolders"
           />
         </div>
 
-        <div v-if="isFetching" class="text-center q-pa-lg">
+        <div v-if="isFetchingFolders" class="text-center q-pa-lg">
           <q-spinner color="accent" size="3em" />
-          <div class="q-mt-sm text-grey">Loading images...</div>
+          <div class="q-mt-sm text-grey">Loading folders...</div>
         </div>
 
         <q-banner
-          v-else-if="fetchError"
+          v-else-if="fetchFoldersError"
           class="bg-negative text-white q-mb-md"
           rounded
         >
           <template v-slot:avatar>
             <q-icon name="error" color="white" />
           </template>
-          Error loading images: {{ fetchError }}
+          Error loading folders: {{ fetchFoldersError }}
         </q-banner>
 
-        <div v-else class="row q-col-gutter-md">
-          <div
-            v-for="(image, index) in fetchedImages"
-            :key="index"
-            class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
-          >
-            <q-card class="image-card">
-              <q-img
-                :src="image.url"
-                :ratio="1"
-                class="image-item"
-                spinner-color="primary"
+        <div v-else-if="!selectedFolder">
+          <div class="row q-col-gutter-md">
+            <div
+              v-for="folder in folders"
+              :key="folder"
+              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+            >
+              <q-card
+                class="image-card folder-card cursor-pointer"
+                @click="openFolder(folder)"
               >
-                <template v-slot:loading>
-                  <q-spinner-puff color="primary" />
-                </template>
-
-                <div
-                  class="absolute-bottom text-caption text-center text-white overlay"
-                >
-                  {{ image.name }}
-                  <div class="text-caption opacity-70">
-                    {{ formatDate(image.timestamp) }}
+                <div class="column items-center q-pa-md">
+                  <q-icon name="folder" color="accent" size="64px" />
+                  <div class="text-center text-weight-bold q-mt-sm">
+                    {{ folder }}
                   </div>
                 </div>
-              </q-img>
-
-              <q-menu touch-position context-menu>
-                <q-list dense style="min-width: 150px">
-                  <q-item clickable @click="downloadImage(image)">
-                    <q-item-section avatar>
-                      <q-icon name="download" />
-                    </q-item-section>
-                    <q-item-section>Download</q-item-section>
-                  </q-item>
-                  <q-item
-                    clickable
-                    @click="deleteImage(image)"
-                    class="text-negative"
-                  >
-                    <q-item-section avatar>
-                      <q-icon name="delete" color="negative" />
-                    </q-item-section>
-                    <q-item-section class="text-negative"
-                      >Delete</q-item-section
-                    >
-                  </q-item>
-                </q-list>
-              </q-menu>
-            </q-card>
+              </q-card>
+            </div>
+            <div
+              v-if="!folders.length && !isFetchingFolders"
+              class="text-grey text-center q-pa-lg full-width"
+            >
+              No folders found
+            </div>
           </div>
+        </div>
 
-          <div
-            v-if="!fetchedImages.length && !isFetching"
-            class="text-grey text-center q-pa-lg full-width"
+        <div v-else>
+          <div class="row items-center q-mb-md">
+            <q-btn
+              flat
+              icon="arrow_back"
+              color="accent"
+              @click="closeFolder"
+              label="Back to Folders"
+            />
+            <div class="q-ml-md text-h6">{{ selectedFolder }}</div>
+            <q-space />
+            <q-btn
+              color="accent"
+              icon="refresh"
+              label="Refresh"
+              @click="fetchImagesInFolder"
+              :loading="isFetchingImages"
+            />
+          </div>
+          <div v-if="isFetchingImages" class="text-center q-pa-lg">
+            <q-spinner color="accent" size="3em" />
+            <div class="q-mt-sm text-grey">Loading images...</div>
+          </div>
+          <q-banner
+            v-else-if="fetchImagesError"
+            class="bg-negative text-white q-mb-md"
+            rounded
           >
-            No images found in storage
+            <template v-slot:avatar>
+              <q-icon name="error" color="white" />
+            </template>
+            Error loading images: {{ fetchImagesError }}
+          </q-banner>
+          <div v-else class="row q-col-gutter-md">
+            <div
+              v-for="(image, index) in folderImages"
+              :key="index"
+              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+            >
+              <q-card class="image-card">
+                <q-img
+                  :src="`${API_BASE}/dataset/${selectedFolder}/${image}`"
+                  :ratio="1"
+                  class="image-item"
+                  spinner-color="primary"
+                >
+                  <template v-slot:loading>
+                    <q-spinner-puff color="primary" />
+                  </template>
+                  <div
+                    class="absolute-bottom text-caption text-center text-white overlay"
+                  >
+                    {{ image }}
+                  </div>
+                </q-img>
+              </q-card>
+            </div>
+            <div
+              v-if="!folderImages.length && !isFetchingImages"
+              class="text-grey text-center q-pa-lg full-width"
+            >
+              No images found in this folder
+            </div>
           </div>
         </div>
       </q-card>
@@ -176,7 +210,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { useQuasar, date } from 'quasar';
+import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
 
 const $q = useQuasar();
@@ -233,7 +267,7 @@ const handleUpload = async () => {
       uploadSuccess.value = false;
     }, 1000);
 
-    await fetchImages();
+    await fetchFolders();
 
     selectedFiles.value = [];
     previewImages.value = [];
@@ -248,80 +282,60 @@ const handleUpload = async () => {
   }
 };
 
-interface GalleryImage {
-  url: string;
-  name: string;
-  timestamp: number;
-  size?: number;
-}
+const folders = ref<string[]>([]);
+const isFetchingFolders = ref(true);
+const fetchFoldersError = ref<string | null>(null);
+const selectedFolder = ref<string | null>(null);
+const folderImages = ref<string[]>([]);
+const isFetchingImages = ref(false);
+const fetchImagesError = ref<string | null>(null);
 
-const fetchedImages = ref<GalleryImage[]>([]);
-const isFetching = ref(true);
-const fetchError = ref<string | null>(null);
-
-const formatDate = (timestamp: number) => {
-  return date.formatDate(timestamp, 'YYYY-MM-DD HH:mm');
-};
-
-const fetchImages = async () => {
-  isFetching.value = true;
-  fetchError.value = null;
-
+const fetchFolders = async () => {
+  isFetchingFolders.value = true;
+  fetchFoldersError.value = null;
   try {
-    const res = await fetch(`${API_BASE.value}/api/images`);
-    if (!res.ok) throw new Error('Failed to fetch images');
-    const images = await res.json();
-    // If backend returns a list of filenames (strings)
-    fetchedImages.value = images.map((img: string) => ({
-      url: `${API_BASE.value}/known_faces/${img}`,
-      name: img,
-      timestamp: null,
-      size: null,
-    }));
+    const res = await fetch(`${API_BASE.value}/api/folders`);
+    if (!res.ok) throw new Error('Failed to fetch folders');
+    folders.value = await res.json();
   } catch (error) {
-    fetchError.value =
-      error instanceof Error ? error.message : 'Failed to load images';
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to load gallery',
-      icon: 'error',
-    });
+    fetchFoldersError.value =
+      error instanceof Error ? error.message : 'Failed to load folders';
   } finally {
-    isFetching.value = false;
+    isFetchingFolders.value = false;
   }
 };
 
-const downloadImage = (image: GalleryImage) => {
-  $q.notify({
-    message: `Downloading ${image.name}`,
-    color: 'info',
-    icon: 'download',
-  });
+const openFolder = (folder: string) => {
+  selectedFolder.value = folder;
+  fetchImagesInFolder();
 };
 
-const deleteImage = (image: GalleryImage) => {
-  $q.dialog({
-    title: 'Confirm Delete',
-    message: `Delete ${image.name} permanently?`,
-    cancel: true,
-    persistent: true,
-  }).onOk(async () => {
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      $q.notify({
-        type: 'positive',
-        message: `${image.name} deleted successfully`,
-        icon: 'check_circle',
-      });
-      await fetchImages();
-    } catch (error) {
-      $q.notify({
-        type: 'negative',
-        message: `Failed to delete ${image.name}`,
-        icon: 'error',
-      });
-    }
-  });
+const closeFolder = () => {
+  selectedFolder.value = null;
+  folderImages.value = [];
+  fetchImagesError.value = null;
+};
+
+const fetchImagesInFolder = async () => {
+  if (!selectedFolder.value) return;
+  isFetchingImages.value = true;
+  fetchImagesError.value = null;
+  try {
+    const res = await fetch(
+      `${API_BASE.value}/api/folder-images?folder=${encodeURIComponent(
+        selectedFolder.value
+      )}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch images');
+    folderImages.value = (await res.json()).filter((img: string) =>
+      /\.(jpg|jpeg|png)$/i.test(img)
+    );
+  } catch (error) {
+    fetchImagesError.value =
+      error instanceof Error ? error.message : 'Failed to load images';
+  } finally {
+    isFetchingImages.value = false;
+  }
 };
 
 watch(
@@ -332,7 +346,7 @@ watch(
 );
 
 onMounted(() => {
-  fetchImages();
+  fetchFolders();
 });
 </script>
 
