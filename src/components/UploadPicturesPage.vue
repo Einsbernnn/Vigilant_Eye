@@ -115,14 +115,33 @@
       >
         <div class="row items-center justify-between q-mb-md">
           <h5 class="q-ma-none text-weight-bold">Image Folder</h5>
-          <q-btn
-            color="accent"
-            icon="refresh"
-            label="Refresh"
-            @click="fetchFolders"
-            :loading="isFetchingFolders"
-            v-if="!selectedFolder"
-          />
+          <div class="row items-center q-gutter-sm">
+            <q-btn
+              color="primary"
+              icon="add"
+              label="New Folder"
+              @click="showCreateFolderDialog"
+            />
+            <q-btn
+              color="accent"
+              icon="refresh"
+              label="Refresh"
+              @click="fetchFolders"
+              :loading="isFetchingFolders"
+              v-if="!selectedFolder"
+            />
+            <q-btn
+              color="positive"
+              icon="play_arrow"
+              label="Train Model"
+              @click="triggerTraining"
+              :loading="isTraining"
+            >
+              <template v-slot:loading>
+                <q-spinner-hourglass size="xs" />
+              </template>
+            </q-btn>
+          </div>
         </div>
 
         <div v-if="isFetchingFolders" class="text-center q-pa-lg">
@@ -171,13 +190,6 @@
                       icon="delete"
                       color="negative"
                       @click.stop="showDeleteDialog(folder)"
-                    />
-                    <q-btn
-                      dense
-                      flat
-                      icon="download"
-                      color="accent"
-                      @click.stop="downloadFolder(folder)"
                     />
                   </div>
                 </div>
@@ -293,6 +305,23 @@
             label="Delete"
             color="negative"
             @click="deleteFolderConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="createFolderDialog" persistent>
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Create New Folder</div>
+          <q-input v-model="newFolderName" label="Folder Name" autofocus />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn
+            flat
+            label="Create"
+            color="accent"
+            @click="createFolderConfirm"
           />
         </q-card-actions>
       </q-card>
@@ -467,9 +496,11 @@ const fetchImagesInFolder = async () => {
 
 const renameDialog = ref(false);
 const deleteDialog = ref(false);
+const createFolderDialog = ref(false);
 const renameInput = ref('');
 const folderToRename = ref('');
 const folderToDelete = ref('');
+const newFolderName = ref('');
 
 function showRenameDialog(folder: string) {
   folderToRename.value = folder;
@@ -515,12 +546,55 @@ async function deleteFolderConfirm() {
     $q.notify({ type: 'negative', message: 'Delete failed' });
   }
 }
-async function downloadFolder(folder: string) {
-  const url = `${
-    API_BASE.value
-  }/api/download-folder?type=image&name=${encodeURIComponent(folder)}`;
-  window.open(url, '_blank');
+
+function showCreateFolderDialog() {
+  newFolderName.value = '';
+  createFolderDialog.value = true;
 }
+
+async function createFolderConfirm() {
+  if (!newFolderName.value.trim()) {
+    $q.notify({ type: 'negative', message: 'Folder name cannot be empty' });
+    return;
+  }
+  try {
+    await fetch(`${API_BASE.value}/api/create-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', name: newFolderName.value }),
+    });
+    $q.notify({ type: 'positive', message: 'Folder created successfully!' });
+    createFolderDialog.value = false;
+    fetchFolders();
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Failed to create folder' });
+  }
+}
+
+const isTraining = ref(false);
+
+const triggerTraining = async () => {
+  isTraining.value = true;
+  try {
+    await fetch(`${API_BASE.value}/api/train-model`, { method: 'POST' });
+    $q.notify({
+      type: 'positive',
+      message: 'Model training started successfully!',
+      icon: 'check_circle',
+    });
+  } catch (error) {
+    console.error('Training error:', error);
+    $q.notify({
+      type: 'negative',
+      message: `Training failed: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+      icon: 'error',
+    });
+  } finally {
+    isTraining.value = false;
+  }
+};
 
 watch(
   () => settingsStore.uploadApiUrl,
