@@ -3,11 +3,11 @@
     <q-header elevated class="bg-dark">
       <q-toolbar class="q-pl-xl">
         <q-avatar square size="lg">
-          <img src="src/assets/rpi-logo.svg" />
+          <img src="src/assets/vigilanteye.png" />
         </q-avatar>
 
         <q-toolbar-title class="text-h5 text-weight-bold text-white">
-          PiVision
+          Vigilant Eye
         </q-toolbar-title>
 
         <q-space />

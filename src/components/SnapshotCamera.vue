@@ -110,6 +110,9 @@ async function startCamera() {
     stream = null;
   }
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('getUserMedia is not supported in this browser.');
+    }
     const constraints: MediaStreamConstraints = {
       video: selectedDeviceId.value
         ? { deviceId: { exact: selectedDeviceId.value } }
