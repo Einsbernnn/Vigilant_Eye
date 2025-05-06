@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { useSettingsStore } from 'stores/settingsStore';
 
 const video = ref<HTMLVideoElement | null>(null);
 const photos = ref<string[]>([]);
@@ -67,6 +68,9 @@ const videoDevices = ref<MediaDeviceInfo[]>([]);
 const selectedDeviceId = ref<string | null>(null);
 const cameraError = ref<string | null>(null);
 const folderError = ref<string | null>(null);
+
+const settingsStore = useSettingsStore();
+const API_BASE = settingsStore.uploadApiUrl;
 
 async function getVideoDevices() {
   try {
@@ -85,10 +89,10 @@ async function setFirstName() {
   if (nameInput.value.trim()) {
     const folderName = nameInput.value.trim();
     // Try to create folder in backend
-    const res = await fetch('http://localhost:5000/api/create-folder', {
+    const res = await fetch(`${API_BASE}/api/create-folder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder: folderName }),
+      body: JSON.stringify({ name: folderName }),
     });
     if (res.status === 409) {
       folderError.value = 'Folder already exists. Please choose a new name.';

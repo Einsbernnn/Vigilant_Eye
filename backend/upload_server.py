@@ -170,7 +170,7 @@ def download_folder():
 @app.route('/api/create-folder', methods=['POST'])
 def create_folder():
     data = request.json
-    folder = data.get('folder')
+    folder = data.get('name') or data.get('folder')
     if not folder:
         return jsonify({'error': 'No folder specified'}), 400
     target_folder = os.path.join(KNOWN_FACES_DIR, folder)
@@ -181,3 +181,5 @@ def create_folder():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
