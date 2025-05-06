@@ -4,30 +4,51 @@
       <q-card class="upload-card q-pa-lg shadow-5">
         <q-form @submit.prevent="handleUpload" class="column q-gutter-y-md">
           <div class="q-mb-md">
-            <select v-model="selectedFolder">
-              <option disabled value="">Select a folder</option>
-              <option v-for="folder in folders" :key="folder" :value="folder">
-                {{ folder }}
-              </option>
-            </select>
-            <input type="file" multiple @change="handleFiles" />
-          </div>
-          <div class="row items-center justify-between q-mb-md">
-            <q-file
-              filled
-              multiple
-              accept="image/*"
-              label="Select images"
-              v-model="selectedFiles"
-              @update:model-value="handleFileSelect"
-              class="q-mr-md"
-              style="width: 300px"
+            <q-select
+              v-model="selectedFolder"
+              :options="folders"
+              label="Select a folder"
+              option-label="name"
+              option-value="name"
+              dense
+              outlined
+              clearable
+              emit-value
+              map-options
+              class="folder-select"
+            />
+            <!-- Enhanced File Input -->
+            <div
+              class="file-drop-area q-mt-md"
+              @dragover.prevent
+              @drop.prevent="handleDrop"
+              @click="triggerFileInput"
             >
-              <template v-slot:prepend>
-                <q-icon name="cloud_upload" color="accent" />
-              </template>
-            </q-file>
+              <q-icon name="cloud_upload" size="48px" color="accent" />
+              <div class="text-grey text-caption q-mt-sm">
+                Drag and drop files here or click to select
+              </div>
+              <input
+                type="file"
+                multiple
+                ref="fileInput"
+                @change="handleFiles"
+                style="display: none"
+              />
+            </div>
 
+            <div v-if="selectedFiles.length" class="file-list q-mt-sm">
+              <div
+                v-for="(file, index) in selectedFiles"
+                :key="index"
+                class="file-item"
+              >
+                <q-icon name="insert_drive_file" size="16px" class="q-mr-sm" />
+                {{ file.name }}
+              </div>
+            </div>
+          </div>
+          <div class="row items-center justify-end q-mb-md">
             <q-btn
               type="submit"
               color="accent"
@@ -66,7 +87,7 @@
                 :src="image"
                 ratio="1"
                 class="preview-image"
-                spinner-color="primary"
+                spinner-color="accent"
               >
                 <div class="absolute-top-right bg-transparent">
                   <q-btn
@@ -80,7 +101,7 @@
                 </div>
 
                 <template v-slot:loading>
-                  <q-spinner-puff color="primary" />
+                  <q-spinner-puff color="accent" />
                 </template>
               </q-img>
             </q-card>
@@ -100,6 +121,7 @@
             label="Refresh"
             @click="fetchFolders"
             :loading="isFetchingFolders"
+            v-if="!selectedFolder"
           />
         </div>
 
@@ -140,7 +162,7 @@
                       dense
                       flat
                       icon="edit"
-                      color="primary"
+                      color="accent"
                       @click.stop="showRenameDialog(folder)"
                     />
                     <q-btn
@@ -214,10 +236,10 @@
                   :src="`${API_BASE}/dataset/${selectedFolder}/${image}`"
                   :ratio="1"
                   class="image-item"
-                  spinner-color="primary"
+                  spinner-color="accent"
                 >
                   <template v-slot:loading>
-                    <q-spinner-puff color="primary" />
+                    <q-spinner-puff color="accent" />
                   </template>
                   <div
                     class="absolute-bottom text-caption text-center text-white overlay"
@@ -249,7 +271,7 @@
           <q-btn
             flat
             label="Rename"
-            color="primary"
+            color="accent"
             @click="renameFolderConfirm"
           />
         </q-card-actions>
@@ -293,15 +315,26 @@ const previewImages = ref<string[]>([]);
 const isUploading = ref(false);
 const uploadSuccess = ref(false);
 
-const handleFileSelect = (files: File[]) => {
-  previewImages.value = files.map((file) => URL.createObjectURL(file));
-  uploadSuccess.value = false;
+const triggerFileInput = () => {
+  const fileInput = document.querySelector(
+    'input[type="file"]'
+  ) as HTMLInputElement;
+  fileInput.click();
 };
 
 const handleFiles = (event: Event) => {
   const input = event.target as HTMLInputElement;
   if (input.files) {
     selectedFiles.value = Array.from(input.files);
+    previewImages.value = selectedFiles.value.map((file) =>
+      URL.createObjectURL(file)
+    );
+  }
+};
+
+const handleDrop = (event: DragEvent) => {
+  if (event.dataTransfer?.files) {
+    selectedFiles.value = Array.from(event.dataTransfer.files);
     previewImages.value = selectedFiles.value.map((file) =>
       URL.createObjectURL(file)
     );
@@ -583,5 +616,46 @@ onMounted(() => {
 .staggered-fade-leave-to {
   opacity: 0;
   transform: scale(0.9);
+}
+
+.custom-file-input {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  .file-list {
+    margin-top: 8px;
+    .file-item {
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+      color: #555;
+    }
+  }
+}
+
+.file-drop-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+
+  &:hover {
+    border-color: #007bff;
+  }
+
+  .text-caption {
+    font-size: 14px;
+  }
+}
+
+.folder-select {
+  width: 100%;
+  max-width: 400px;
 }
 </style>
