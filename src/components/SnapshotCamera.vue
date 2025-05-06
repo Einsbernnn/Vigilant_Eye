@@ -185,7 +185,7 @@ function savePhotoToBackend(dataUrl: string, count: number) {
 function handleKeyDown(e: KeyboardEvent) {
   if (e.code === 'Space' && !takingPhotos) {
     takingPhotos = true;
-    photoInterval = window.setInterval(takePhoto, 300); // Take photo every 300ms
+    photoInterval = window.setInterval(takePhoto, 300);
   }
 }
 function handleKeyUp(e: KeyboardEvent) {
@@ -233,18 +233,55 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  background: linear-gradient(135deg, #ece9e6, #ffffff);
+  min-height: 100vh;
+  font-family: 'Arial', sans-serif;
 }
 .name-prompt {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  background: #f9f9f9;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.name-prompt label {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #333;
+}
+.name-prompt input {
+  padding: 0.5rem 1rem;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+.name-prompt input:focus {
+  border-color: #9c27b0;
+  outline: none;
+}
+.name-prompt button {
+  background: #9c27b0;
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 0.5rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+}
+.name-prompt button:hover {
+  background: #388e3c;
+  transform: scale(1.05);
 }
 .photobooth-frame {
   position: relative;
   border: 8px solid #fff;
   border-radius: 24px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   width: 360px;
   height: 270px;
@@ -286,6 +323,7 @@ onBeforeUnmount(() => {
 .counter {
   font-size: 1.1rem;
   font-weight: bold;
+  color: #333;
 }
 .done-btn,
 .redo-btn {
@@ -296,13 +334,15 @@ onBeforeUnmount(() => {
   padding: 0.5rem 1.5rem;
   font-size: 1rem;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.3s, transform 0.2s;
 }
 .done-btn:hover {
   background: #388e3c;
+  transform: scale(1.05);
 }
 .redo-btn:hover {
   background: #c62828;
+  transform: scale(1.05);
 }
 .thumbnails {
   display: flex;
@@ -318,5 +358,10 @@ onBeforeUnmount(() => {
   border: 2px solid #fff;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.thumbnail:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 </style>
