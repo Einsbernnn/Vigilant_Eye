@@ -1,92 +1,110 @@
 <template>
   <q-page class="q-px-xl q-pt-xl">
     <div class="gallery-wrapper">
-      <div class="header-row q-mb-lg">
-        <q-input
-          v-model="dateRangeString"
-          outlined
-          placeholder="Select date range"
-          color="accent"
-          class="date-picker"
-          dense
-          emit-value
-          clearable
-        >
-          <template v-slot:prepend>
-            <q-icon name="event" />
-          </template>
-          <q-popup-proxy>
-            <q-date
-              range
-              v-model="dateRange"
-              mask="YYYY-MM-DD"
-              color="accent"
-              bordered
-              @update:model-value="updateDateRangeString"
-            />
-          </q-popup-proxy>
-        </q-input>
-
-        <q-btn
-          color="accent"
-          icon="cloud_download"
-          label="Export All"
-          rounded
-          class="export-btn"
-        />
-      </div>
-
-      <div class="video-grid">
-        <q-card
-          v-for="video in filteredVideos"
-          :key="video.id"
-          class="video-card"
-          v-ripple
-        >
-          <div class="thumbnail-wrapper">
-            <q-img :src="video.thumbnail" :ratio="16 / 9" class="thumbnail">
-              <div class="hover-actions absolute-full flex flex-center">
-                <q-btn
-                  round
-                  icon="play_circle"
-                  color="white"
-                  size="lg"
-                  class="play-btn"
-                />
+      <div v-if="!selectedFolder">
+        <div class="row q-col-gutter-md">
+          <div
+            v-for="folder in folders"
+            :key="folder"
+            class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+          >
+            <q-card
+              class="image-card folder-card cursor-pointer"
+              @click="selectFolder(folder)"
+            >
+              <div class="column items-center q-pa-md">
+                <q-icon name="folder" color="accent" size="64px" />
+                <div class="text-center text-weight-bold q-mt-sm">
+                  {{ folder }}
+                </div>
               </div>
-            </q-img>
-
-            <q-badge color="dark" class="duration-badge">
-              {{ formatDuration(video.duration) }}
-            </q-badge>
+            </q-card>
           </div>
+          <div
+            v-if="!folders.length"
+            class="text-grey text-center q-pa-lg full-width"
+          >
+            No folders found
+          </div>
+        </div>
+      </div>
+      <div v-else>
+        <div class="row items-center q-mb-md">
+          <q-btn
+            flat
+            icon="arrow_back"
+            color="accent"
+            @click="clearSelectedFolder"
+            label="Back to Folders"
+          />
+          <div class="q-ml-md text-h6">{{ selectedFolder }}</div>
+          <q-space />
+          <input
+            type="file"
+            multiple
+            accept="video/*"
+            @change="handleVideoFiles"
+          />
+          <q-btn
+            color="accent"
+            icon="cloud_upload"
+            label="Upload Video"
+            @click="uploadVideos"
+            :loading="isUploading"
+          />
+        </div>
+        <div class="video-grid">
+          <q-card
+            v-for="video in filteredVideos"
+            :key="video.id"
+            class="video-card"
+            v-ripple
+          >
+            <div class="thumbnail-wrapper">
+              <q-img :src="video.thumbnail" :ratio="16 / 9" class="thumbnail">
+                <div class="hover-actions absolute-full flex flex-center">
+                  <q-btn
+                    round
+                    icon="play_circle"
+                    color="white"
+                    size="lg"
+                    class="play-btn"
+                  />
+                </div>
+              </q-img>
 
-          <q-card-section class="card-content">
-            <div class="text-h6 text-weight-bold">{{ video.title }}</div>
-            <div class="text-caption text-grey q-mt-xs">
-              {{ formatDate(video.timestamp) }}
+              <q-badge color="dark" class="duration-badge">
+                {{ formatDuration(video.duration) }}
+              </q-badge>
             </div>
-          </q-card-section>
 
-          <q-card-actions class="card-actions">
-            <q-btn
-              flat
-              round
-              icon="delete"
-              color="grey-6"
-              @click="deleteVideo(video)"
-            />
-            <q-btn
-              flat
-              round
-              icon="download"
-              color="grey-6"
-              @click="downloadVideo(video)"
-            />
-            <q-space />
-            <q-btn flat round icon="info" color="grey-6" />
-          </q-card-actions>
-        </q-card>
+            <q-card-section class="card-content">
+              <div class="text-h6 text-weight-bold">{{ video.title }}</div>
+              <div class="text-caption text-grey q-mt-xs">
+                {{ formatDate(video.timestamp) }}
+              </div>
+            </q-card-section>
+
+            <q-card-actions class="card-actions">
+              <q-btn
+                flat
+                round
+                icon="delete"
+                color="grey-6"
+                @click="deleteVideo(video)"
+              />
+              <q-btn
+                flat
+                round
+                icon="download"
+                color="grey-6"
+                @click="downloadVideo(video)"
+              />
+              <q-space />
+              <q-btn flat round icon="info" color="grey-6" />
+            </q-card-actions>
+          </q-card>
+        </div>
       </div>
     </div>
   </q-page>
@@ -176,7 +194,9 @@
 </style>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useQuasar } from 'quasar';
+import { useSettingsStore } from 'stores/settingsStore';
 
 interface Video {
   id: string;
@@ -187,6 +207,10 @@ interface Video {
   url: string;
 }
 
+const $q = useQuasar();
+const settingsStore = useSettingsStore();
+const API_BASE = ref(settingsStore.uploadApiUrl);
+
 const searchQuery = ref('');
 const dateRange = ref<{ from: string | null; to: string | null }>({
   from: null,
@@ -194,16 +218,10 @@ const dateRange = ref<{ from: string | null; to: string | null }>({
 });
 const dateRangeString = ref<string | null>(null);
 
-const updateDateRangeString = (range: {
-  from: string | null;
-  to: string | null;
-}) => {
-  if (range.from && range.to) {
-    dateRangeString.value = `${range.from} to ${range.to}`;
-  } else {
-    dateRangeString.value = null;
-  }
-};
+const selectedFolder = ref('');
+const videoFiles = ref<File[]>([]);
+const isUploading = ref(false);
+const folders = ref<string[]>([]);
 
 watch(dateRangeString, (newValue) => {
   if (newValue) {
@@ -251,4 +269,118 @@ const downloadVideo = (video: Video) => {
 const deleteVideo = (video: Video) => {
   console.log('Deleting:', video);
 };
+
+const handleVideoFiles = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files) {
+    videoFiles.value = Array.from(input.files);
+  }
+};
+
+const uploadVideos = async () => {
+  if (!selectedFolder.value) {
+    $q.notify({
+      type: 'negative',
+      message: 'Please select a folder',
+      icon: 'warning',
+    });
+    return;
+  }
+  if (!videoFiles.value.length) {
+    $q.notify({
+      type: 'negative',
+      message: 'Please select videos to upload',
+      icon: 'warning',
+    });
+    return;
+  }
+  isUploading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('folder', selectedFolder.value);
+    videoFiles.value.forEach((file) => {
+      formData.append('videos', file);
+    });
+    await fetch(`${API_BASE.value}/api/upload-video`, {
+      method: 'POST',
+      body: formData,
+    });
+    $q.notify({
+      type: 'positive',
+      message: 'Videos uploaded successfully!',
+      icon: 'check_circle',
+    });
+    videoFiles.value = [];
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: `Upload failed: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+      icon: 'error',
+    });
+  } finally {
+    isUploading.value = false;
+  }
+};
+
+const fetchFolders = async () => {
+  try {
+    const res = await fetch(`${API_BASE.value}/api/video-folders`);
+    if (!res.ok) throw new Error('Failed to fetch folders');
+    folders.value = await res.json();
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: `Failed to load folders: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+      icon: 'error',
+    });
+  }
+};
+
+const fetchVideosInFolder = async () => {
+  if (!selectedFolder.value) return;
+  try {
+    const res = await fetch(
+      `${API_BASE.value}/api/folder-videos?folder=${encodeURIComponent(
+        selectedFolder.value
+      )}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch videos');
+    const files = await res.json();
+    videos.value = files.map((filename: string, idx: number) => ({
+      id: `${selectedFolder.value}-${idx}`,
+      title: filename,
+      timestamp: new Date(),
+      duration: 0,
+      thumbnail: '',
+      url: `${API_BASE.value}/footage/${selectedFolder.value}/${filename}`,
+    }));
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: `Failed to load videos: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+      icon: 'error',
+    });
+  }
+};
+
+const selectFolder = (folder: string) => {
+  selectedFolder.value = folder;
+  fetchVideosInFolder();
+};
+
+const clearSelectedFolder = () => {
+  selectedFolder.value = '';
+  videoFiles.value = [];
+  videos.value = [];
+};
+
+onMounted(() => {
+  fetchFolders();
+});
 </script>

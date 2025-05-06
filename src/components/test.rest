@@ -1,0 +1,41 @@
+### List folders
+GET http://192.168.100.24:5000/api/folders
+
+### List images in a folder
+GET http://192.168.100.24:5000/api/folder-images?folder=FOLDER_NAME
+
+### Upload images to a folder
+POST http://192.168.100.24:5000/api/upload
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="Tang"
+
+FOLDER_NAME
+--boundary
+Content-Disposition: form-data; name="Tang"; filename="test_01.jpg"
+Content-Type: image/jpeg
+
+< ./img_01.jpg
+--boundary--
+
+### Upload videos to a folder
+POST http://192.168.100.24:5000/api/upload-video
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="footage"
+
+FOLDER_NAME
+--boundary
+Content-Disposition: form-data; name="videos"; filename="test.mp4"
+Content-Type: video/mp4
+
+< ./test.mp4
+--boundary--
+
+### List all images
+GET http://192.168.100.24:5000/api/images
+
+### List all videos (custom, if you add such endpoint)
+GET http://192.168.100.24:5000/api/videos

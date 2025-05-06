@@ -3,6 +3,15 @@
     <div class="column items-center q-gutter-lg">
       <q-card class="upload-card q-pa-lg shadow-5">
         <q-form @submit.prevent="handleUpload" class="column q-gutter-y-md">
+          <div class="q-mb-md">
+            <select v-model="selectedFolder">
+              <option disabled value="">Select a folder</option>
+              <option v-for="folder in folders" :key="folder" :value="folder">
+                {{ folder }}
+              </option>
+            </select>
+            <input type="file" multiple @change="handleFiles" />
+          </div>
           <div class="row items-center justify-between q-mb-md">
             <q-file
               filled
@@ -228,6 +237,16 @@ const handleFileSelect = (files: File[]) => {
   uploadSuccess.value = false;
 };
 
+const handleFiles = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files) {
+    selectedFiles.value = Array.from(input.files);
+    previewImages.value = selectedFiles.value.map((file) =>
+      URL.createObjectURL(file)
+    );
+  }
+};
+
 const removeImage = (index: number) => {
   selectedFiles.value.splice(index, 1);
   previewImages.value.splice(index, 1);
@@ -242,11 +261,20 @@ const handleUpload = async () => {
     });
     return;
   }
+  if (!selectedFolder.value) {
+    $q.notify({
+      type: 'negative',
+      message: 'Please select a folder',
+      icon: 'warning',
+    });
+    return;
+  }
 
   isUploading.value = true;
 
   try {
     const formData = new FormData();
+    formData.append('folder', selectedFolder.value);
     selectedFiles.value.forEach((file) => {
       formData.append('images', file);
     });
@@ -269,12 +297,17 @@ const handleUpload = async () => {
 
     await fetchFolders();
 
+    // Revoke object URLs to avoid memory leaks
+    previewImages.value.forEach((url) => URL.revokeObjectURL(url));
     selectedFiles.value = [];
     previewImages.value = [];
   } catch (error) {
+    console.error('Upload error:', error);
     $q.notify({
       type: 'negative',
-      message: 'Upload failed. Please try again.',
+      message: `Upload failed: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
       icon: 'error',
     });
   } finally {
@@ -294,7 +327,7 @@ const fetchFolders = async () => {
   isFetchingFolders.value = true;
   fetchFoldersError.value = null;
   try {
-    const res = await fetch(`${API_BASE.value}/api/folders`);
+    const res = await fetch(`${API_BASE.value}/api/image-folders`);
     if (!res.ok) throw new Error('Failed to fetch folders');
     folders.value = await res.json();
   } catch (error) {
