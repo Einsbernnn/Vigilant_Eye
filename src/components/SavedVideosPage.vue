@@ -17,6 +17,29 @@
                 <div class="text-center text-weight-bold q-mt-sm">
                   {{ folder }}
                 </div>
+                <div class="row q-gutter-xs q-mt-sm">
+                  <q-btn
+                    dense
+                    flat
+                    icon="edit"
+                    color="primary"
+                    @click.stop="showRenameDialog(folder)"
+                  />
+                  <q-btn
+                    dense
+                    flat
+                    icon="delete"
+                    color="negative"
+                    @click.stop="showDeleteDialog(folder)"
+                  />
+                  <q-btn
+                    dense
+                    flat
+                    icon="download"
+                    color="accent"
+                    @click.stop="downloadFolder(folder)"
+                  />
+                </div>
               </div>
             </q-card>
           </div>
@@ -107,6 +130,43 @@
         </div>
       </div>
     </div>
+    <q-dialog v-model="renameDialog" persistent>
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Rename Folder</div>
+          <q-input v-model="renameInput" label="New Folder Name" autofocus />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn
+            flat
+            label="Rename"
+            color="primary"
+            @click="renameFolderConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="deleteDialog" persistent>
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Delete Folder</div>
+          <div>
+            Are you sure you want to delete <b>{{ folderToDelete }}</b
+            >?
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn
+            flat
+            label="Delete"
+            color="negative"
+            @click="deleteFolderConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -222,6 +282,12 @@ const selectedFolder = ref('');
 const videoFiles = ref<File[]>([]);
 const isUploading = ref(false);
 const folders = ref<string[]>([]);
+
+const renameDialog = ref(false);
+const deleteDialog = ref(false);
+const renameInput = ref('');
+const folderToRename = ref('');
+const folderToDelete = ref('');
 
 watch(dateRangeString, (newValue) => {
   if (newValue) {
@@ -379,6 +445,61 @@ const clearSelectedFolder = () => {
   videoFiles.value = [];
   videos.value = [];
 };
+
+function showRenameDialog(folder: string) {
+  folderToRename.value = folder;
+  renameInput.value = folder;
+  renameDialog.value = true;
+}
+
+async function renameFolderConfirm() {
+  try {
+    await fetch(`${API_BASE.value}/api/rename-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'video',
+        oldName: folderToRename.value,
+        newName: renameInput.value,
+      }),
+    });
+    $q.notify({ type: 'positive', message: 'Folder renamed!' });
+    renameDialog.value = false;
+    fetchFolders();
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Rename failed' });
+  }
+}
+
+function showDeleteDialog(folder: string) {
+  folderToDelete.value = folder;
+  deleteDialog.value = true;
+}
+
+async function deleteFolderConfirm() {
+  try {
+    await fetch(`${API_BASE.value}/api/delete-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'video',
+        name: folderToDelete.value,
+      }),
+    });
+    $q.notify({ type: 'positive', message: 'Folder deleted!' });
+    deleteDialog.value = false;
+    fetchFolders();
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Delete failed' });
+  }
+}
+
+async function downloadFolder(folder: string) {
+  const url = `${
+    API_BASE.value
+  }/api/download-folder?type=video&name=${encodeURIComponent(folder)}`;
+  window.open(url, '_blank');
+}
 
 onMounted(() => {
   fetchFolders();
