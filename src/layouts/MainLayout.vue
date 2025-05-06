@@ -32,6 +32,12 @@
               icon="camera_enhance"
               content-class="text-white"
             />
+            <q-route-tab
+              to="/snapshot-camera"
+              label="Snap Shot"
+              icon="photo_camera"
+              content-class="text-white"
+            />
           </q-tabs>
         </div>
 

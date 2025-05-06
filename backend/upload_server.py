@@ -5,7 +5,8 @@ import time
 import shutil
 
 app = Flask(__name__)
-CORS(app)
+# Allow all origins (for development)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 KNOWN_FACES_DIR = '/home/einsbern/facial_recognition/dataset'
 VIDEO_DIR = '/home/einsbern/facial_recognition/footage'
@@ -165,6 +166,18 @@ def download_folder():
     zip_path = f"/tmp/{folder_name}.zip"
     shutil.make_archive(f"/tmp/{folder_name}", 'zip', folder_path)
     return send_file(zip_path, as_attachment=True)
+
+@app.route('/api/create-folder', methods=['POST'])
+def create_folder():
+    data = request.json
+    folder = data.get('folder')
+    if not folder:
+        return jsonify({'error': 'No folder specified'}), 400
+    target_folder = os.path.join(KNOWN_FACES_DIR, folder)
+    if os.path.exists(target_folder):
+        return jsonify({'error': 'Folder already exists'}), 409
+    os.makedirs(target_folder, exist_ok=True)
+    return jsonify({'created': folder}), 201
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

@@ -21,6 +21,10 @@ const routes: RouteRecordRaw[] = [
         path: 'upload-pictures',
         component: () => import('components/UploadPicturesPage.vue'),
       },
+      {
+        path: 'snapshot-camera',
+        component: () => import('components/SnapshotCamera.vue'),
+      },
     ],
   },
   {
