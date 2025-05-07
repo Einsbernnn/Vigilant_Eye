@@ -2,53 +2,85 @@
   <q-page class="q-px-xl q-pt-xl">
     <div class="gallery-wrapper">
       <div v-if="!selectedFolder">
-        <div class="row q-col-gutter-md">
-          <div
-            v-for="folder in folders"
-            :key="folder"
-            class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
-          >
-            <q-card
-              class="image-card folder-card cursor-pointer"
-              @click="selectFolder(folder)"
+        <div class="row q-col-gutter-md items-center">
+          <div class="row items-center no-wrap">
+            <q-input
+              dense
+              outlined
+              v-model="dateRangeString"
+              placeholder="Select date range"
+              class="date-picker"
+              readonly
             >
-              <div class="column items-center q-pa-md">
-                <q-icon name="folder" color="accent" size="64px" />
-                <div class="text-center text-weight-bold q-mt-sm">
-                  {{ folder }}
-                </div>
-                <div class="row q-gutter-xs q-mt-sm">
-                  <q-btn
-                    dense
-                    flat
-                    icon="edit"
-                    color="primary"
-                    @click.stop="showRenameDialog(folder)"
-                  />
-                  <q-btn
-                    dense
-                    flat
-                    icon="delete"
-                    color="negative"
-                    @click.stop="showDeleteDialog(folder)"
-                  />
-                  <q-btn
-                    dense
-                    flat
-                    icon="download"
-                    color="accent"
-                    @click.stop="downloadFolder(folder)"
-                  />
-                </div>
-              </div>
-            </q-card>
+              <template v-slot:prepend>
+                <q-icon name="event" />
+              </template>
+              <q-popup-proxy>
+                <q-date
+                  range
+                  v-model="dateRange"
+                  mask="YYYY-MM-DD"
+                  color="accent"
+                  bordered
+                  @update:model-value="updateDateRangeString"
+                />
+              </q-popup-proxy>
+            </q-input>
+            <q-btn
+              color="primary"
+              label="Search"
+              icon="search"
+              @click="filterFoldersByDate"
+              class="q-ml-sm"
+              push
+            />
           </div>
-          <div
-            v-if="!folders.length"
-            class="text-grey text-center q-pa-lg full-width"
+        </div>
+        <div
+          v-for="folder in filteredFolders"
+          :key="folder"
+          class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+        >
+          <q-card
+            class="image-card folder-card cursor-pointer"
+            @click="selectFolder(folder)"
           >
-            No folders found
-          </div>
+            <div class="column items-center q-pa-md">
+              <q-icon name="folder" color="accent" size="64px" />
+              <div class="text-center text-weight-bold q-mt-sm">
+                {{ folder }}
+              </div>
+              <div class="row q-gutter-xs q-mt-sm">
+                <q-btn
+                  dense
+                  flat
+                  icon="edit"
+                  color="primary"
+                  @click.stop="showRenameDialog(folder)"
+                />
+                <q-btn
+                  dense
+                  flat
+                  icon="delete"
+                  color="negative"
+                  @click.stop="showDeleteDialog(folder)"
+                />
+                <q-btn
+                  dense
+                  flat
+                  icon="download"
+                  color="accent"
+                  @click.stop="downloadFolder(folder)"
+                />
+              </div>
+            </div>
+          </q-card>
+        </div>
+        <div
+          v-if="!folders.length"
+          class="text-grey text-center q-pa-lg full-width"
+        >
+          No folders found
         </div>
       </div>
       <div v-else>
@@ -250,6 +282,7 @@
 
 .date-picker {
   max-width: 300px;
+  flex-grow: 1;
 }
 </style>
 
@@ -288,6 +321,22 @@ const deleteDialog = ref(false);
 const renameInput = ref('');
 const folderToRename = ref('');
 const folderToDelete = ref('');
+
+const folderSearchQuery = ref('');
+const filteredFolders = computed(() => {
+  return folders.value.filter((folder) => {
+    const matchesSearchQuery = folder
+      .toLowerCase()
+      .includes(folderSearchQuery.value.toLowerCase());
+
+    const folderDate = new Date(folder); // Assuming folder names are dates
+    const matchesDateRange =
+      (!dateRange.value.from || folderDate >= new Date(dateRange.value.from)) &&
+      (!dateRange.value.to || folderDate <= new Date(dateRange.value.to));
+
+    return matchesSearchQuery && matchesDateRange;
+  });
+});
 
 watch(dateRangeString, (newValue) => {
   if (newValue) {
@@ -499,6 +548,19 @@ async function downloadFolder(folder: string) {
     API_BASE.value
   }/api/download-folder?type=video&name=${encodeURIComponent(folder)}`;
   window.open(url, '_blank');
+}
+
+function updateDateRangeString() {
+  if (dateRange.value.from && dateRange.value.to) {
+    dateRangeString.value = `${dateRange.value.from} to ${dateRange.value.to}`;
+  } else {
+    dateRangeString.value = null;
+  }
+}
+
+function filterFoldersByDate() {
+  // Logic to filter folders based on the selected date range
+  console.log('Filtering folders by date range:', dateRange.value);
 }
 
 onMounted(() => {

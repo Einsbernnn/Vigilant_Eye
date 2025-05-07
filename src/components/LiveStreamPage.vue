@@ -2,6 +2,7 @@
   <q-page class="q-px-xl q-pt-xl">
     <div class="stream-wrapper">
       <div class="video-container">
+        <div class="panel-label">Live Stream</div>
         <!-- Use <img> for MJPEG streams -->
         <img
           v-if="streamingActive"
@@ -21,11 +22,22 @@
             round
             :icon="streamingActive ? 'pause' : 'play_arrow'"
             :color="streamingActive ? 'accent' : 'primary'"
-            size="lg"
+            size="md"
             class="shadow-5"
             @click="toggleStream"
-          />
-
+          >
+            <q-tooltip>Toggle Stream</q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            icon="fiber_manual_record"
+            :color="recordingActive ? 'red' : 'grey'"
+            size="md"
+            class="shadow-5"
+            @click="toggleRecording"
+          >
+            <q-tooltip>Toggle Recording</q-tooltip>
+          </q-btn>
           <q-chip
             v-if="connectionStatus"
             :color="connectionStatus.color"
@@ -35,11 +47,29 @@
             <q-avatar :icon="connectionStatus.icon" />
             {{ connectionStatus.text }}
           </q-chip>
+          <q-chip
+            v-if="recordingActive"
+            color="red"
+            text-color="white"
+            class="status-chip"
+          >
+            <q-avatar icon="fiber_manual_record" />
+            Recording...
+          </q-chip>
         </div>
       </div>
 
-      <div class="placeholder-panel q-mt-lg">
-        <p class="placeholder-text"></p>
+      <div class="notification-panel-container" style="height: 75.5vh">
+        <div class="panel-label">Notifications</div>
+        <div class="notification-panel">
+          <div
+            v-for="(notification, index) in notifications"
+            :key="index"
+            class="notification-item"
+          >
+            {{ notification }}
+          </div>
+        </div>
       </div>
     </div>
   </q-page>
@@ -50,6 +80,7 @@ import { ref, reactive, computed } from 'vue';
 import { useSettingsStore } from 'stores/settingsStore';
 
 const streamingActive = ref(false);
+const recordingActive = ref(false);
 const settingsStore = useSettingsStore();
 const videoSrc = computed(() =>
   streamingActive.value ? `${settingsStore.liveStreamUrl}/video` : ''
@@ -59,6 +90,32 @@ const connectionStatus = reactive({
   icon: 'check_circle',
   text: 'Connected',
 });
+
+const notifications = ref<string[]>([
+  'Stream started successfully.',
+  'Recording started.',
+  'Stream paused.',
+  'Recording stopped.',
+  'Stream started successfully.',
+  'Recording started.',
+  'Stream paused.',
+  'Recording stopped.',
+  'Stream started successfully.',
+  'Recording started.',
+  'Stream paused.',
+  'Recording stopped.',
+  'Stream started successfully.',
+  'Recording started.',
+  'Stream paused.',
+  'Recording stopped.',
+]);
+
+// const addNotification = (message: string) => {
+//   notifications.value.push(message);
+//   if (notifications.value.length > 50) {
+//     notifications.value.shift(); // Keep the list manageable
+//   }
+// };
 
 const toggleStream = () => {
   streamingActive.value = !streamingActive.value;
@@ -70,6 +127,20 @@ const toggleStream = () => {
     connectionStatus.color = 'green';
     connectionStatus.icon = 'check_circle';
     connectionStatus.text = 'Live';
+  }
+};
+
+const toggleRecording = () => {
+  if (!streamingActive.value) {
+    notifications.value.push('Cannot start recording. Stream is not active.');
+    return;
+  }
+
+  recordingActive.value = !recordingActive.value;
+  if (recordingActive.value) {
+    notifications.value.push('Recording started');
+  } else {
+    notifications.value.push('Recording stopped');
   }
 };
 
@@ -97,11 +168,6 @@ const onStreamError = () => {
   overflow: hidden;
   background: #000;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-  }
 }
 
 .video-element {
@@ -136,6 +202,37 @@ const onStreamError = () => {
 .status-chip {
   backdrop-filter: blur(5px);
   background: rgba(255, 255, 255, 0.1) !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-panel-container {
+  flex: 1;
+  height: 70vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9);
+}
+
+.notification-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+}
+
+.notification-item {
+  padding: 8px;
+  margin-bottom: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.9em;
 }
 
 .placeholder-panel {
@@ -152,6 +249,23 @@ const onStreamError = () => {
 .placeholder-text {
   font-size: 1.2em;
   color: #ccc;
+  text-align: center;
+}
+
+.notification-item {
+  padding: 8px;
+  margin-bottom: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.9em;
+}
+
+.panel-label {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 10px;
   text-align: center;
 }
 </style>

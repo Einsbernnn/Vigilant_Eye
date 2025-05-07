@@ -3,11 +3,11 @@
     <q-header elevated class="bg-dark">
       <q-toolbar class="q-pl-xl">
         <q-avatar square size="lg">
-          <img src="src/assets/rpi-logo.svg" />
+          <img src="src/assets/vigilant.png" />
         </q-avatar>
 
         <q-toolbar-title class="text-h5 text-weight-bold text-white">
-          PiVision
+          Vigilant Eye
         </q-toolbar-title>
 
         <q-space />
@@ -130,6 +130,18 @@
             filled
             class="q-mt-md"
           />
+          <q-toggle
+            v-model="settings.enableCameraLight"
+            label="Enable Camera Light"
+            class="q-mt-md"
+            @change="toggleCameraLight"
+          />
+          <q-toggle
+            v-model="settings.enableCameraPanning"
+            label="Enable Camera Panning"
+            class="q-mt-md"
+            @change="toggleCameraPanning"
+          />
         </q-card-section>
 
         <q-card-actions align="right" class="q-px-md q-pb-md">
@@ -170,6 +182,8 @@ const showSettingsDialog = ref(false);
 const settings = ref({
   liveStreamUrl: '',
   uploadApiUrl: '',
+  enableCameraLight: false,
+  enableCameraPanning: false,
 });
 
 const toggleDarkMode = () => {
@@ -206,6 +220,16 @@ const saveSettings = () => {
   }
 
   showSettingsDialog.value = false;
+};
+
+const toggleCameraLight = () => {
+  const settingsStore = useSettingsStore();
+  settingsStore.updateCameraLight(settings.value.enableCameraLight);
+};
+
+const toggleCameraPanning = () => {
+  const settingsStore = useSettingsStore();
+  settingsStore.updateCameraPanning(settings.value.enableCameraPanning);
 };
 
 const darkModeIcon = computed(() =>
