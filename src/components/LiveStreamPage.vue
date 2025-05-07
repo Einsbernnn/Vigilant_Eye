@@ -2,6 +2,7 @@
   <q-page class="q-px-xl q-pt-xl">
     <div class="stream-wrapper">
       <div class="video-container">
+        <div class="panel-label">Live Stream</div>
         <!-- Use <img> for MJPEG streams -->
         <img
           v-if="streamingActive"
@@ -24,7 +25,9 @@
             size="md"
             class="shadow-5"
             @click="toggleStream"
-          />
+          >
+            <q-tooltip>Toggle Stream</q-tooltip>
+          </q-btn>
           <q-btn
             round
             icon="fiber_manual_record"
@@ -32,7 +35,9 @@
             size="md"
             class="shadow-5"
             @click="toggleRecording"
-          />
+          >
+            <q-tooltip>Toggle Recording</q-tooltip>
+          </q-btn>
           <q-chip
             v-if="connectionStatus"
             :color="connectionStatus.color"
@@ -54,7 +59,8 @@
         </div>
       </div>
 
-      <div class="notification-panel-container">
+      <div class="notification-panel-container" style="height: 75.5vh">
+        <div class="panel-label">Notifications</div>
         <div class="notification-panel">
           <div
             v-for="(notification, index) in notifications"
@@ -125,11 +131,16 @@ const toggleStream = () => {
 };
 
 const toggleRecording = () => {
+  if (!streamingActive.value) {
+    notifications.value.push('Cannot start recording. Stream is not active.');
+    return;
+  }
+
   recordingActive.value = !recordingActive.value;
   if (recordingActive.value) {
-    console.log('Recording started');
+    notifications.value.push('Recording started');
   } else {
-    console.log('Recording stopped');
+    notifications.value.push('Recording stopped');
   }
 };
 
@@ -157,11 +168,6 @@ const onStreamError = () => {
   overflow: hidden;
   background: #000;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-  }
 }
 
 .video-element {
@@ -208,15 +214,15 @@ const onStreamError = () => {
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9);
 }
 
 .notification-panel {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 16px;
 }
 
@@ -253,5 +259,13 @@ const onStreamError = () => {
   border-radius: 4px;
   color: #fff;
   font-size: 0.9em;
+}
+
+.panel-label {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 10px;
+  text-align: center;
 }
 </style>
