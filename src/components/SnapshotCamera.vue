@@ -113,15 +113,17 @@ async function startCamera() {
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
   }
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    cameraError.value = 'Camera API not supported in this environment.';
+    return;
+  }
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('getUserMedia is not supported in this browser.');
+    let constraints: MediaStreamConstraints;
+    if (selectedDeviceId.value) {
+      constraints = { video: { deviceId: { exact: selectedDeviceId.value } } };
+    } else {
+      constraints = { video: true };
     }
-    const constraints: MediaStreamConstraints = {
-      video: selectedDeviceId.value
-        ? { deviceId: { exact: selectedDeviceId.value } }
-        : true,
-    };
     stream = await navigator.mediaDevices.getUserMedia(constraints);
     if (video.value) {
       video.value.srcObject = stream;

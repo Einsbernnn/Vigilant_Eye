@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 import time
 import shutil
+import subprocess
 
 app = Flask(__name__)
 # Allow all origins (for development)
@@ -178,6 +179,39 @@ def create_folder():
         return jsonify({'error': 'Folder already exists'}), 409
     os.makedirs(target_folder, exist_ok=True)
     return jsonify({'created': folder}), 201
+
+@app.route('/api/train-model', methods=['POST'])
+def train_model():
+    try:
+        venv_python = '/home/einsbern/facial_recognition/camenv/bin/python'
+        script_path = '/home/einsbern/facial_recognition/train_model.py'
+        print(f"[DEBUG] venv_python: {venv_python}")
+        print(f"[DEBUG] script_path: {script_path}")
+        if not os.path.isfile(venv_python):
+            print(f"[ERROR] Python interpreter not found at {venv_python}")
+            return jsonify({'error': f'Python interpreter not found at {venv_python}'}), 500
+        if not os.path.isfile(script_path):
+            print(f"[ERROR] train_model.py not found at {script_path}")
+            return jsonify({'error': f'train_model.py not found at {script_path}'}), 500
+        process = subprocess.Popen(
+            [venv_python, script_path],
+            cwd=os.path.dirname(script_path),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        stdout, stderr = process.communicate(timeout=10)
+        print(f"[DEBUG] train_model.py stdout: {stdout.decode()}")
+        print(f"[DEBUG] train_model.py stderr: {stderr.decode()}")
+        if process.returncode != 0:
+            return jsonify({'error': f'train_model.py failed: {stderr.decode()}'}), 500
+        return jsonify({'status': 'started', 'output': stdout.decode()}), 202
+    except subprocess.TimeoutExpired:
+        print("[DEBUG] train_model.py is running in background (timeout expired)")
+        return jsonify({'status': 'started (background)'}), 202
+    except Exception as e:
+        import traceback
+        print(f"[EXCEPTION] {e}\n{traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
