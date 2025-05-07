@@ -147,6 +147,7 @@
         <div v-if="isTraining" class="q-mb-md">
           <q-banner class="bg-grey-2 text-dark q-pa-sm" rounded>
             <div
+              ref="logContainer"
               style="
                 max-height: 200px;
                 overflow-y: auto;
@@ -159,6 +160,16 @@
               </div>
             </div>
           </q-banner>
+          <div v-if="progress" class="text-center q-mt-md">
+            <div class="text-grey">
+              Processing image {{ progress.current }} of {{ progress.total }}
+            </div>
+            <q-linear-progress
+              :value="progress.current / progress.total"
+              color="accent"
+              class="q-mt-sm"
+            />
+          </div>
         </div>
 
         <div v-if="isFetchingFolders" class="text-center q-pa-lg">
@@ -347,7 +358,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
 
@@ -590,10 +601,48 @@ async function createFolderConfirm() {
 
 const isTraining = ref(false);
 const trainingLogs = ref<string[]>([]);
+const logContainer = ref<HTMLElement | null>(null);
+const progress = ref<{ current: number; total: number } | null>(null);
+
+function parseProgressFromLog(line: string) {
+  // Example: [INFO] processing image 4/789
+  const match = line.match(/processing image (\d+)[\/](\d+)/i);
+  if (match) {
+    progress.value = {
+      current: parseInt(match[1], 10),
+      total: parseInt(match[2], 10),
+    };
+  }
+}
+
+// Prevent closing/navigating away during training
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (isTraining.value) {
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+}
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload);
+});
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+});
+
+// Auto-scroll logs to latest
+watch(trainingLogs, () => {
+  nextTick(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+    }
+  });
+});
 
 const triggerTrainingWithLogs = () => {
   isTraining.value = true;
   trainingLogs.value = [];
+  progress.value = null;
   const eventSource = new EventSource(
     `${API_BASE.value}/api/train-model-stream`
   );
@@ -601,6 +650,7 @@ const triggerTrainingWithLogs = () => {
     if (event.data === '[DONE]') {
       isTraining.value = false;
       eventSource.close();
+      progress.value = null;
       $q.notify({
         type: 'positive',
         message: 'Model training completed!',
@@ -609,6 +659,7 @@ const triggerTrainingWithLogs = () => {
     } else if (event.data.startsWith('ERROR:')) {
       isTraining.value = false;
       eventSource.close();
+      progress.value = null;
       $q.notify({
         type: 'negative',
         message: event.data,
@@ -616,11 +667,13 @@ const triggerTrainingWithLogs = () => {
       });
     } else {
       trainingLogs.value.push(event.data);
+      parseProgressFromLog(event.data);
     }
   };
   eventSource.onerror = () => {
     isTraining.value = false;
     eventSource.close();
+    progress.value = null;
     $q.notify({
       type: 'negative',
       message: 'Connection lost or server error.',

@@ -119,6 +119,15 @@
         <q-separator color="accent" />
 
         <q-card-section class="q-pt-lg q-pb-md text-body1">
+          <div class="q-mb-md">
+            <q-btn
+              color="negative"
+              icon="do_not_disturb_on"
+              label="Do Not Disturb"
+              class="full-width"
+              @click="activateDoNotDisturb"
+            />
+          </div>
           <q-input
             v-model="settings.liveStreamUrl"
             label="Live Stream URL"
@@ -130,17 +139,47 @@
             filled
             class="q-mt-md"
           />
+          <q-input
+            v-model="settings.cameraLocation"
+            label="Camera Location"
+            filled
+            class="q-mt-md"
+            prepend="Camera Location"
+          />
           <q-toggle
             v-model="settings.enableCameraLight"
-            label="Enable Camera Light"
+            label="Turn On Camera Light"
             class="q-mt-md"
             @change="toggleCameraLight"
+            :disable="settings.doNotDisturb"
           />
           <q-toggle
             v-model="settings.enableCameraPanning"
-            label="Enable Camera Panning"
+            label="Disable Camera Panning"
             class="q-mt-md"
             @change="toggleCameraPanning"
+            :disable="settings.doNotDisturb"
+          />
+          <q-toggle
+            v-model="settings.enableBuzzerSound"
+            label="Disable Buzzer Sound"
+            class="q-mt-md"
+            @change="toggleBuzzerSound"
+            :disable="settings.doNotDisturb"
+          />
+          <q-toggle
+            v-model="settings.enableMotionSensor"
+            label="Disable Motion Sensor"
+            class="q-mt-md"
+            @change="toggleMotionSensor"
+            :disable="settings.doNotDisturb"
+          />
+          <q-toggle
+            v-model="settings.doNotDisturb"
+            label="Do Not Disturb"
+            class="q-mt-md"
+            @change="toggleDoNotDisturb"
+            style="display: none"
           />
         </q-card-section>
 
@@ -173,6 +212,7 @@ import { useUserStore } from 'stores/userStore';
 import { useRouter } from 'vue-router';
 import { ref, computed } from 'vue';
 import { useSettingsStore } from 'stores/settingsStore';
+import { api } from 'boot/axios';
 
 const $q = useQuasar();
 const userStore = useUserStore();
@@ -182,8 +222,12 @@ const showSettingsDialog = ref(false);
 const settings = ref({
   liveStreamUrl: '',
   uploadApiUrl: '',
+  cameraLocation: '',
   enableCameraLight: false,
   enableCameraPanning: false,
+  enableBuzzerSound: false,
+  enableMotionSensor: false,
+  doNotDisturb: false,
 });
 
 const toggleDarkMode = () => {
@@ -230,6 +274,66 @@ const toggleCameraLight = () => {
 const toggleCameraPanning = () => {
   const settingsStore = useSettingsStore();
   settingsStore.updateCameraPanning(settings.value.enableCameraPanning);
+};
+
+const toggleBuzzerSound = async () => {
+  try {
+    await api.post('/set-buzzer', {
+      enabled: settings.value.enableBuzzerSound,
+    });
+    if (!settings.value.enableBuzzerSound) {
+      $q.notify({
+        type: 'info',
+        message: 'Buzzer Sound has been disabled. Notifying backend...',
+      });
+    } else {
+      $q.notify({
+        type: 'info',
+        message: 'Buzzer Sound has been enabled. Notifying backend...',
+      });
+    }
+  } catch (error) {
+    $q.notify({ type: 'negative', message: 'Failed to update buzzer state.' });
+  }
+};
+
+const toggleMotionSensor = async () => {
+  try {
+    await api.post('/set-motion-sensor', {
+      enabled: settings.value.enableMotionSensor,
+    });
+    if (!settings.value.enableMotionSensor) {
+      $q.notify({
+        type: 'info',
+        message: 'Motion Sensor has been disabled. Notifying backend...',
+      });
+    } else {
+      $q.notify({
+        type: 'info',
+        message: 'Motion Sensor has been enabled. Notifying backend...',
+      });
+    }
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update motion sensor state.',
+    });
+  }
+};
+
+const toggleDoNotDisturb = () => {
+  // No store action for Do Not Disturb
+  if (settings.value.doNotDisturb) {
+    settings.value.enableCameraLight = false;
+    settings.value.enableCameraPanning = false;
+    settings.value.enableBuzzerSound = false;
+    settings.value.enableMotionSensor = false;
+  }
+};
+
+const activateDoNotDisturb = () => {
+  settings.value.doNotDisturb = !settings.value.doNotDisturb;
+  toggleDoNotDisturb();
 };
 
 const darkModeIcon = computed(() =>

@@ -85,12 +85,16 @@ import {
   watch,
 } from 'vue';
 import { useSettingsStore } from 'stores/settingsStore';
+import { useNotificationStore } from 'stores/notificationStore';
 import { onBeforeRouteLeave } from 'vue-router';
+import { useQuasar } from 'quasar';
 
+const $q = useQuasar();
 const streamingActive = ref(false);
 const recordingActive = ref(false);
 const recordingFolder = ref('');
 const settingsStore = useSettingsStore();
+const notificationStore = useNotificationStore();
 const videoSrc = computed(() =>
   streamingActive.value ? `${settingsStore.liveStreamUrl}/video` : ''
 );
@@ -100,13 +104,10 @@ const connectionStatus = reactive({
   text: 'Connected',
 });
 
-const notifications = ref<string[]>([]);
+const notifications = computed(() => notificationStore.notifications);
 
 const addNotification = (message: string) => {
-  notifications.value.push(message);
-  if (notifications.value.length > 50) {
-    notifications.value.shift();
-  }
+  notificationStore.addNotification(message);
 };
 
 // Add this notification when recording starts
@@ -263,6 +264,29 @@ const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
 
 onMounted(() => {
   window.addEventListener('beforeunload', beforeUnloadHandler);
+
+  // Poll for PIR notifications every 2 seconds
+  setInterval(async () => {
+    try {
+      const res = await fetch(
+        `${settingsStore.liveStreamUrl}/pir-notification`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.notification) {
+          addNotification(data.notification);
+          $q.notify({
+            type: 'warning',
+            message: data.notification,
+            timeout: 5000,
+            position: 'top-right',
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }, 2000);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);

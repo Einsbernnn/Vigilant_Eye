@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-#CAM.py
+#Camera_API.py
+#dev by EinsbernSystems
 
 from flask import Flask, Response, request, jsonify
 from imutils.video import VideoStream
@@ -18,29 +19,107 @@ import atexit
 import platform
 import subprocess
 
+app = Flask(__name__)
+
 # GPIO setup for Raspberry Pi
 try:
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM)
     BUZZER_PIN = 17
     SERVO_PIN = 23
+    PIR_PIN = 22
     GPIO.setup(BUZZER_PIN, GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)
+    GPIO.setup(PIR_PIN, GPIO.IN)
     servo = GPIO.PWM(SERVO_PIN, 50)  # 50Hz for servo
     servo.start(0)
     HAS_GPIO = True
 except (ImportError, RuntimeError):
     HAS_GPIO = False
 
+# State for enabling/disabling buzzer and motion sensor
+buzzer_enabled = True
+motion_sensor_enabled = True
+
+# Add state for intruder detection
+intruder_active = False
+intruder_last_seen = 0
+
+@app.route('/set-buzzer', methods=['POST'])
+def set_buzzer():
+    global buzzer_enabled
+    data = request.get_json(force=True, silent=True)
+    if data and 'enabled' in data:
+        buzzer_enabled = bool(data['enabled'])
+        return jsonify({'buzzer_enabled': buzzer_enabled}), 200
+    return jsonify({'error': 'Missing enabled field'}), 400
+
+@app.route('/set-motion-sensor', methods=['POST'])
+def set_motion_sensor():
+    global motion_sensor_enabled
+    data = request.get_json(force=True, silent=True)
+    if data and 'enabled' in data:
+        motion_sensor_enabled = bool(data['enabled'])
+        return jsonify({'motion_sensor_enabled': motion_sensor_enabled}), 200
+    return jsonify({'error': 'Missing enabled field'}), 400
+
 # Buzzer beep function
+# Only beep if buzzer_enabled is True
 def beep(times=1, duration=0.2):
-    if not HAS_GPIO:
+    if not HAS_GPIO or not buzzer_enabled:
         return
     for _ in range(times):
         GPIO.output(BUZZER_PIN, GPIO.HIGH)
         time.sleep(duration)
         GPIO.output(BUZZER_PIN, GPIO.LOW)
         time.sleep(0.2)
+
+# PIR sensor notification state
+pir_last_state = False
+pir_triggered_time = 0
+pir_notified = False
+pir_notification_message = None
+
+def pir_monitor_thread():
+    global pir_last_state, pir_triggered_time, pir_notified, pir_notification_message, intruder_active, intruder_last_seen
+    if not HAS_GPIO:
+        return
+    while True:
+        pir_state = GPIO.input(PIR_PIN)
+        now = time.time()
+        if pir_state and motion_sensor_enabled:
+            if not pir_last_state:  # Rising edge: motion just detected
+                pir_triggered_time = now
+                pir_notified = False
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # Use last detected name if available
+                global currentname
+                name = currentname if currentname and currentname != 'unknown' else None
+                # Get camera location from file if available
+                camera_location = None
+                try:
+                    with open('camera_location.txt', 'r') as f:
+                        camera_location = f.read().strip()
+                except Exception:
+                    camera_location = None
+                location_str = f" at your {camera_location}" if camera_location else ""
+                if name and name.lower() != 'unknown':
+                    pir_notification_message = f"{name} seen{location_str} at {timestamp}"
+                else:
+                    # Only set notification if not already active
+                    if not intruder_active:
+                        pir_notification_message = f"Intruder was Detected{location_str} at {timestamp}"
+                        intruder_active = True
+        else:
+            pir_triggered_time = 0
+            pir_notified = False
+            pir_notification_message = None
+            intruder_active = False
+        pir_last_state = pir_state
+        time.sleep(0.5)
+
+if HAS_GPIO:
+    threading.Thread(target=pir_monitor_thread, daemon=True).start()
 
 class NonMirroredTracker:
     def __init__(self):
@@ -79,7 +158,6 @@ encodingsP = "encodings.pickle"
 print("[INFO] loading encodings + face detector...")
 data = pickle.loads(open(encodingsP, "rb").read())
 
-app = Flask(__name__)
 vs = VideoStream(src=0, framerate=10).start()
 time.sleep(2.0)
 
@@ -211,6 +289,17 @@ def stop_recording():
 
         return jsonify({'folder': folder, 'filename': filename, 'fps': fps}), 200
 
+@app.route('/pir-notification')
+def pir_notification():
+    global pir_notification_message, motion_sensor_enabled
+    if not motion_sensor_enabled:
+        return jsonify({'notification': None})
+    if pir_notification_message:
+        msg = pir_notification_message
+        pir_notification_message = None  # Only send once
+        return jsonify({'notification': msg})
+    return jsonify({'notification': None})
+
 def cleanup_recording():
     global recording, recording_writer
     with recording_lock:
@@ -221,7 +310,7 @@ def cleanup_recording():
 atexit.register(cleanup_recording)
 
 def recognize_and_draw(frame):
-    global currentname, last_beep_time
+    global currentname, last_beep_time, intruder_active, intruder_last_seen
 
     # Convert from BGR to RGB for face_recognition
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -274,12 +363,21 @@ def recognize_and_draw(frame):
     # Buzzer logic
     now = time.time()
     with beep_lock:
-        if "Unknown" in names and currentname != "Unknown" and now - last_beep_time > 2:
+        if "Unknown" in names:
+            if not intruder_active:
+                intruder_active = True
+            # Keep beeping as long as unknown is present
+            if now - last_beep_time > 1.0:
+                threading.Thread(target=beep, args=(1, 0.2)).start()
+                last_beep_time = now
             currentname = "Unknown"
-            threading.Thread(target=beep, args=(3, 0.2)).start()
-            last_beep_time = now
+            intruder_last_seen = now
         elif any(n != "Unknown" for n in names):
             currentname = name
+            intruder_active = False
+    # If no unknown detected for 3 seconds, reset intruder state
+    if intruder_active and now - intruder_last_seen > 3:
+        intruder_active = False
 
     return frame
 
