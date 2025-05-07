@@ -134,7 +134,7 @@
               color="positive"
               icon="play_arrow"
               label="Train Model"
-              @click="triggerTraining"
+              @click="triggerTrainingWithLogs"
               :loading="isTraining"
             >
               <template v-slot:loading>
@@ -142,6 +142,23 @@
               </template>
             </q-btn>
           </div>
+        </div>
+
+        <div v-if="isTraining" class="q-mb-md">
+          <q-banner class="bg-grey-2 text-dark q-pa-sm" rounded>
+            <div
+              style="
+                max-height: 200px;
+                overflow-y: auto;
+                font-family: monospace;
+                font-size: 13px;
+              "
+            >
+              <div v-for="(line, idx) in trainingLogs" :key="idx">
+                {{ line }}
+              </div>
+            </div>
+          </q-banner>
         </div>
 
         <div v-if="isFetchingFolders" class="text-center q-pa-lg">
@@ -572,28 +589,44 @@ async function createFolderConfirm() {
 }
 
 const isTraining = ref(false);
+const trainingLogs = ref<string[]>([]);
 
-const triggerTraining = async () => {
+const triggerTrainingWithLogs = () => {
   isTraining.value = true;
-  try {
-    await fetch(`${API_BASE.value}/api/train-model`, { method: 'POST' });
-    $q.notify({
-      type: 'positive',
-      message: 'Model training started successfully!',
-      icon: 'check_circle',
-    });
-  } catch (error) {
-    console.error('Training error:', error);
+  trainingLogs.value = [];
+  const eventSource = new EventSource(
+    `${API_BASE.value}/api/train-model-stream`
+  );
+  eventSource.onmessage = (event) => {
+    if (event.data === '[DONE]') {
+      isTraining.value = false;
+      eventSource.close();
+      $q.notify({
+        type: 'positive',
+        message: 'Model training completed!',
+        icon: 'check_circle',
+      });
+    } else if (event.data.startsWith('ERROR:')) {
+      isTraining.value = false;
+      eventSource.close();
+      $q.notify({
+        type: 'negative',
+        message: event.data,
+        icon: 'error',
+      });
+    } else {
+      trainingLogs.value.push(event.data);
+    }
+  };
+  eventSource.onerror = () => {
+    isTraining.value = false;
+    eventSource.close();
     $q.notify({
       type: 'negative',
-      message: `Training failed: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      message: 'Connection lost or server error.',
       icon: 'error',
     });
-  } finally {
-    isTraining.value = false;
-  }
+  };
 };
 
 watch(

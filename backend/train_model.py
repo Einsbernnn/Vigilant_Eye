@@ -20,7 +20,7 @@ knownNames = []
 for (i, imagePath) in enumerate(imagePaths):
   # extract the person name from the image path
   print("[INFO] processing image {}/{}".format(i + 1,
-    len(imagePaths)))
+    len(imagePaths)), flush=True)
   name = imagePath.split(os.path.sep)[-2]
 
   # load the input image and convert it from RGB (OpenCV ordering)
@@ -44,7 +44,7 @@ for (i, imagePath) in enumerate(imagePaths):
     knownNames.append(name)
 
 # dump the facial encodings + names to disk
-print("[INFO] serializing encodings...")
+print("[INFO] serializing encodings...", flush=True)
 data = {"encodings": knownEncodings, "names": knownNames}
 f = open("encodings.pickle", "wb")
 f.write(pickle.dumps(data))

@@ -7,33 +7,19 @@
       <div v-if="!selectedFolder">
         <div class="row q-col-gutter-md items-center">
           <div class="row items-center no-wrap">
-            <q-input
-              dense
-              outlined
-              v-model="dateRangeString"
-              placeholder="Select date range"
-              class="date-picker"
-              readonly
-            >
-              <template v-slot:prepend>
-                <q-icon name="event" />
-              </template>
-              <q-popup-proxy>
-                <q-date
-                  range
-                  v-model="dateRange"
-                  mask="YYYY-MM-DD"
-                  color="accent"
-                  bordered
-                  @update:model-value="updateDateRangeString"
-                />
-              </q-popup-proxy>
-            </q-input>
             <q-btn
               color="primary"
-              label="Search"
-              icon="search"
-              @click="filterFoldersByDate"
+              label="Refresh"
+              icon="refresh"
+              @click="refreshFolders"
+              class="q-ml-sm"
+              push
+            />
+            <q-btn
+              color="primary"
+              label="Sort"
+              icon="sort"
+              @click="sortFolders"
               class="q-ml-sm"
               push
             />
@@ -685,17 +671,26 @@ async function downloadFolder(folder: string) {
   window.open(url, '_blank');
 }
 
-function updateDateRangeString() {
-  if (dateRange.value.from && dateRange.value.to) {
-    dateRangeString.value = `${dateRange.value.from} to ${dateRange.value.to}`;
-  } else {
-    dateRangeString.value = null;
-  }
+// Removed unused function 'updateDateRangeString' to resolve the compile error.
+
+// Removed unused function 'filterFoldersByDate' to resolve the compile error.
+
+function refreshFolders() {
+  fetchFolders();
+  $q.notify({
+    type: 'positive',
+    message: 'Folders refreshed!',
+    icon: 'check_circle',
+  });
 }
 
-function filterFoldersByDate() {
-  // Logic to filter folders based on the selected date range
-  console.log('Filtering folders by date range:', dateRange.value);
+function sortFolders() {
+  folders.value.sort((a, b) => a.localeCompare(b));
+  $q.notify({
+    type: 'positive',
+    message: 'Folders sorted!',
+    icon: 'check_circle',
+  });
 }
 
 const currentDateTime = ref('');
