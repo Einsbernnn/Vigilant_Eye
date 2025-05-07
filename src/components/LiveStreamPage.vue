@@ -54,7 +54,7 @@
             class="status-chip"
           >
             <q-avatar icon="fiber_manual_record" />
-            Recording...
+            Recording... {{ formatRecordingDuration }}
           </q-chip>
         </div>
       </div>
@@ -76,11 +76,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
 import { useSettingsStore } from 'stores/settingsStore';
+import { onBeforeRouteLeave } from 'vue-router';
 
 const streamingActive = ref(false);
 const recordingActive = ref(false);
+const recordingFolder = ref('');
 const settingsStore = useSettingsStore();
 const videoSrc = computed(() =>
   streamingActive.value ? `${settingsStore.liveStreamUrl}/video` : ''
@@ -91,31 +100,54 @@ const connectionStatus = reactive({
   text: 'Connected',
 });
 
-const notifications = ref<string[]>([
-  'Stream started successfully.',
-  'Recording started.',
-  'Stream paused.',
-  'Recording stopped.',
-  'Stream started successfully.',
-  'Recording started.',
-  'Stream paused.',
-  'Recording stopped.',
-  'Stream started successfully.',
-  'Recording started.',
-  'Stream paused.',
-  'Recording stopped.',
-  'Stream started successfully.',
-  'Recording started.',
-  'Stream paused.',
-  'Recording stopped.',
-]);
+const notifications = ref<string[]>([]);
 
-// const addNotification = (message: string) => {
-//   notifications.value.push(message);
-//   if (notifications.value.length > 50) {
-//     notifications.value.shift(); // Keep the list manageable
-//   }
-// };
+const addNotification = (message: string) => {
+  notifications.value.push(message);
+  if (notifications.value.length > 50) {
+    notifications.value.shift();
+  }
+};
+
+// Add this notification when recording starts
+watch(recordingActive, (newVal) => {
+  if (newVal) {
+    addNotification(
+      'Recording is in progress. If you leave or refresh, the recording will stop.'
+    );
+  }
+});
+
+const recordingDuration = ref(0); // seconds
+let recordingTimer: ReturnType<typeof setInterval> | null = null;
+
+const formatRecordingDuration = computed(() => {
+  const h = Math.floor(recordingDuration.value / 3600)
+    .toString()
+    .padStart(2, '0');
+  const m = Math.floor((recordingDuration.value % 3600) / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = (recordingDuration.value % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+});
+
+watch(recordingActive, (newVal) => {
+  if (newVal) {
+    recordingDuration.value = 0;
+    if (recordingTimer) clearInterval(recordingTimer);
+    recordingTimer = setInterval(() => {
+      recordingDuration.value++;
+    }, 1000);
+  } else {
+    if (recordingTimer) clearInterval(recordingTimer);
+    recordingTimer = null;
+  }
+});
+
+onBeforeUnmount(() => {
+  if (recordingTimer) clearInterval(recordingTimer);
+});
 
 const toggleStream = () => {
   streamingActive.value = !streamingActive.value;
@@ -130,17 +162,83 @@ const toggleStream = () => {
   }
 };
 
-const toggleRecording = () => {
+const getFrontendTimestamp = () => {
+  const now = new Date();
+  // Folder: 'May, 07, 2025 - 14:23:45'
+  const folder = now
+    .toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    .replace(/,/, ',')
+    .replace(/\//g, ',')
+    .replace(/ /g, ' ')
+    .replace(/:/g, ':');
+  // File: '2025-05-07_14-23-45.mov'
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const file = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+    now.getDate()
+  )}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(
+    now.getSeconds()
+  )}.mov`;
+  return { folder, file };
+};
+
+const toggleRecording = async () => {
   if (!streamingActive.value) {
-    notifications.value.push('Cannot start recording. Stream is not active.');
+    addNotification('Cannot start recording. Stream is not active.');
     return;
   }
-
-  recordingActive.value = !recordingActive.value;
-  if (recordingActive.value) {
-    notifications.value.push('Recording started');
+  if (!recordingActive.value) {
+    // Start recording
+    try {
+      const { folder, file } = getFrontendTimestamp();
+      const res = await fetch(
+        `${settingsStore.liveStreamUrl}/start-recording`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_name: folder, filename: file }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        addNotification(
+          `Failed to start recording: ${data.error || res.statusText}`
+        );
+        return;
+      }
+      const data = await res.json();
+      recordingActive.value = true;
+      recordingFolder.value = data.folder;
+      addNotification(`Recording started: ${data.folder}`);
+    } catch (e) {
+      addNotification('Failed to start recording.');
+    }
   } else {
-    notifications.value.push('Recording stopped');
+    // Stop recording
+    try {
+      const res = await fetch(`${settingsStore.liveStreamUrl}/stop-recording`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        addNotification(
+          `Failed to stop recording: ${data.error || res.statusText}`
+        );
+        return;
+      }
+      const data = await res.json();
+      recordingActive.value = false;
+      addNotification(`Recording stopped. Saved in: ${data.folder}`);
+    } catch (e) {
+      addNotification('Failed to stop recording.');
+    }
   }
 };
 
@@ -150,6 +248,45 @@ const onStreamError = () => {
   connectionStatus.text = 'Stream Error';
   streamingActive.value = false;
 };
+
+const showRecordingWarning = ref(false);
+
+// Warn on browser refresh/close
+const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+  if (recordingActive.value) {
+    e.preventDefault();
+    e.returnValue =
+      'Recording is in progress. If you leave or refresh, the recording will stop.';
+    return e.returnValue;
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('beforeunload', beforeUnloadHandler);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', beforeUnloadHandler);
+});
+
+// Vue router navigation guard
+onBeforeRouteLeave((to, from, next) => {
+  if (recordingActive.value) {
+    showRecordingWarning.value = true;
+    if (
+      confirm(
+        'Recording is in progress. If you leave this page, the recording will stop. Are you sure you want to leave?'
+      )
+    ) {
+      showRecordingWarning.value = false;
+      next();
+    } else {
+      showRecordingWarning.value = false;
+      next(false);
+    }
+  } else {
+    next();
+  }
+});
 </script>
 
 <style lang="scss" scoped>

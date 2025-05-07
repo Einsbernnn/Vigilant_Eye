@@ -1,5 +1,8 @@
 <template>
   <q-page class="q-px-xl q-pt-xl">
+    <div class="q-mb-md text-h6 text-center">
+      {{ currentDateTime }}
+    </div>
     <div class="gallery-wrapper">
       <div v-if="!selectedFolder">
         <div class="row q-col-gutter-md items-center">
@@ -49,6 +52,11 @@
               <q-icon name="folder" color="accent" size="64px" />
               <div class="text-center text-weight-bold q-mt-sm">
                 {{ folder }}
+                <div class="text-caption text-grey-6">
+                  {{
+                    formatDate(parseDateFromFolderName(folder) || new Date())
+                  }}
+                </div>
               </div>
               <div class="row q-gutter-xs q-mt-sm">
                 <q-btn
@@ -363,10 +371,12 @@ const filteredFolders = computed(() => {
       .toLowerCase()
       .includes(folderSearchQuery.value.toLowerCase());
 
-    const folderDate = new Date(folder); // Assuming folder names are dates
+    const folderDate = parseDateFromFolderName(folder);
     const matchesDateRange =
-      (!dateRange.value.from || folderDate >= new Date(dateRange.value.from)) &&
-      (!dateRange.value.to || folderDate <= new Date(dateRange.value.to));
+      (!dateRange.value.from ||
+        (folderDate && folderDate >= new Date(dateRange.value.from))) &&
+      (!dateRange.value.to ||
+        (folderDate && folderDate <= new Date(dateRange.value.to)));
 
     return matchesSearchQuery && matchesDateRange;
   });
@@ -500,7 +510,26 @@ const uploadVideos = async () => {
   }
 };
 
-// Fetch and set video duration for each video
+// Helper to parse date from folder name (e.g., 'May, 07, 2025 - 14:23:45')
+function parseDateFromFolderName(folder: string): Date | null {
+  const match = folder.match(
+    /([A-Za-z]+), (\d{2}), (\d{4}) - (\d{2}):(\d{2}):(\d{2})/
+  );
+  if (!match) return null;
+  const [, month, day, year, hour, min, sec] = match;
+  return new Date(`${month} ${day}, ${year} ${hour}:${min}:${sec}`);
+}
+
+// Helper to parse date from video filename (e.g., '2025-05-07_14-23-45.mp4')
+function parseDateFromVideoFilename(filename: string): Date | null {
+  const match = filename.match(
+    /(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/
+  );
+  if (!match) return null;
+  const [, year, month, day, hour, min, sec] = match;
+  return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`);
+}
+
 function fetchVideoDurations() {
   videos.value.forEach((video, idx) => {
     const tempVideo = document.createElement('video');
@@ -515,7 +544,6 @@ function fetchVideoDurations() {
   });
 }
 
-// Generate a thumbnail for each video
 function generateVideoThumbnails() {
   videos.value.forEach((video, idx) => {
     if (video.thumbnail) return; // Skip if already set
@@ -566,10 +594,14 @@ const fetchVideosInFolder = async () => {
     );
     if (!res.ok) throw new Error('Failed to fetch videos');
     const files = await res.json();
-    videos.value = files.map((filename: string, idx: number) => ({
+    // Only include browser-friendly files (hide .mov)
+    const filteredFiles = files.filter((filename: string) =>
+      /\.(mp4|avi|mkv)$/i.test(filename)
+    );
+    videos.value = filteredFiles.map((filename: string, idx: number) => ({
       id: `${selectedFolder.value}-${idx}`,
       title: filename,
-      timestamp: new Date(),
+      timestamp: parseDateFromVideoFilename(filename) || new Date(),
       duration: 0,
       thumbnail: '',
       url: `${API_BASE.value}/footage/${selectedFolder.value}/${filename}`,
@@ -666,7 +698,18 @@ function filterFoldersByDate() {
   console.log('Filtering folders by date range:', dateRange.value);
 }
 
+const currentDateTime = ref('');
+function updateCurrentDateTime() {
+  const now = new Date();
+  currentDateTime.value = now.toLocaleString('en-US', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+}
+
 onMounted(() => {
+  updateCurrentDateTime();
+  setInterval(updateCurrentDateTime, 1000);
   fetchFolders();
 });
 </script>
