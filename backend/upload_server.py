@@ -1,9 +1,11 @@
-from flask import Flask, send_from_directory, jsonify, request, send_file
+from flask import Flask, send_from_directory, jsonify, request, send_file, Response
 from flask_cors import CORS
 import os
 import time
 import shutil
 import subprocess
+import mimetypes
+import re
 
 app = Flask(__name__)
 # Allow all origins (for development)
@@ -121,6 +123,35 @@ def list_video_folders():
 def serve_folder_image(folder, filename):
     folder_path = os.path.join(KNOWN_FACES_DIR, folder)
     return send_from_directory(folder_path, filename, as_attachment=False)
+
+@app.route('/footage/<folder>/<filename>')
+def serve_video(folder, filename):
+    folder_path = os.path.join(VIDEO_DIR, folder)
+    file_path = os.path.join(folder_path, filename)
+    if not os.path.exists(file_path):
+        app.logger.error(f"Video file not found: {file_path}")
+        return jsonify({'error': 'File not found'}), 404
+    range_header = request.headers.get('Range', None)
+    if not range_header:
+        # No Range header, serve whole file
+        return send_file(file_path, mimetype=mimetypes.guess_type(file_path)[0] or 'application/octet-stream')
+    size = os.path.getsize(file_path)
+    byte1, byte2 = 0, None
+    m = re.search(r'bytes=(\d+)-(\d*)', range_header)
+    if m:
+        g = m.groups()
+        byte1 = int(g[0])
+        if g[1]:
+            byte2 = int(g[1])
+    length = size - byte1 if byte2 is None else byte2 - byte1 + 1
+    with open(file_path, 'rb') as f:
+        f.seek(byte1)
+        data = f.read(length)
+    rv = Response(data, 206, mimetype=mimetypes.guess_type(file_path)[0] or 'application/octet-stream', direct_passthrough=True)
+    rv.headers.add('Content-Range', f'bytes {byte1}-{byte1 + length - 1}/{size}')
+    rv.headers.add('Accept-Ranges', 'bytes')
+    rv.headers.add('Content-Length', str(length))
+    return rv
 
 @app.route('/api/rename-folder', methods=['POST'])
 def rename_folder():

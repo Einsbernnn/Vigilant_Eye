@@ -116,7 +116,11 @@
             v-ripple
           >
             <div class="thumbnail-wrapper">
-              <q-img :src="video.thumbnail" :ratio="16 / 9" class="thumbnail">
+              <q-img
+                :src="getVideoThumbnail(video)"
+                :ratio="16 / 9"
+                class="thumbnail"
+              >
                 <div class="hover-actions absolute-full flex flex-center">
                   <q-btn
                     round
@@ -124,12 +128,17 @@
                     color="white"
                     size="lg"
                     class="play-btn"
+                    @click="playVideo(video)"
                   />
                 </div>
               </q-img>
 
               <q-badge color="dark" class="duration-badge">
-                {{ formatDuration(video.duration) }}
+                {{
+                  video.duration > 0
+                    ? formatDuration(video.duration)
+                    : 'Loading...'
+                }}
               </q-badge>
             </div>
 
@@ -196,6 +205,27 @@
             color="negative"
             @click="deleteFolderConfirm"
           />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="videoDialog" persistent>
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Playing Video</div>
+          <video
+            v-if="videoToPlay"
+            :src="getVideoUrl(videoToPlay)"
+            controls
+            autoplay
+            style="width: 100%"
+            @error="onVideoError"
+          ></video>
+          <div v-if="videoError" class="text-negative q-mt-md">
+            Failed to load video.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -322,6 +352,10 @@ const renameInput = ref('');
 const folderToRename = ref('');
 const folderToDelete = ref('');
 
+const videoDialog = ref(false);
+const videoToPlay = ref<Video | null>(null);
+const videoError = ref(false);
+
 const folderSearchQuery = ref('');
 const filteredFolders = computed(() => {
   return folders.value.filter((folder) => {
@@ -372,13 +406,40 @@ const formatDate = (date: Date) => {
 };
 
 const formatDuration = (seconds: number) => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  if (!isFinite(seconds) || seconds < 0) return '00:00:00.000';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const millis = Math.floor((seconds - Math.floor(seconds)) * 1000);
+  return (
+    `${hours.toString().padStart(2, '0')}:` +
+    `${minutes.toString().padStart(2, '0')}:` +
+    `${secs.toString().padStart(2, '0')}.` +
+    `${millis.toString().padStart(3, '0')}`
+  );
+};
+
+const getVideoUrl = (video: Video) => video.url;
+const getVideoThumbnail = (video: Video) =>
+  video.thumbnail || '/icons/vigilant.png';
+
+const playVideo = (video: Video) => {
+  videoToPlay.value = video;
+  videoDialog.value = true;
+  videoError.value = false;
+};
+
+const onVideoError = () => {
+  videoError.value = true;
 };
 
 const downloadVideo = (video: Video) => {
-  console.log('Downloading:', video);
+  const link = document.createElement('a');
+  link.href = getVideoUrl(video);
+  link.download = video.title;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 const deleteVideo = (video: Video) => {
@@ -439,6 +500,46 @@ const uploadVideos = async () => {
   }
 };
 
+// Fetch and set video duration for each video
+function fetchVideoDurations() {
+  videos.value.forEach((video, idx) => {
+    const tempVideo = document.createElement('video');
+    tempVideo.preload = 'metadata';
+    tempVideo.src = video.url;
+    tempVideo.onloadedmetadata = () => {
+      videos.value[idx].duration = tempVideo.duration;
+    };
+    tempVideo.onerror = () => {
+      videos.value[idx].duration = 0;
+    };
+  });
+}
+
+// Generate a thumbnail for each video
+function generateVideoThumbnails() {
+  videos.value.forEach((video, idx) => {
+    if (video.thumbnail) return; // Skip if already set
+    const tempVideo = document.createElement('video');
+    tempVideo.preload = 'metadata';
+    tempVideo.src = video.url;
+    tempVideo.muted = true;
+    tempVideo.currentTime = 0.5; // Try to grab a frame at 0.5s
+    tempVideo.onloadeddata = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = tempVideo.videoWidth;
+      canvas.height = tempVideo.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+        videos.value[idx].thumbnail = canvas.toDataURL('image/png');
+      }
+    };
+    tempVideo.onerror = () => {
+      videos.value[idx].thumbnail = '/icons/vigilant.png';
+    };
+  });
+}
+
 const fetchFolders = async () => {
   try {
     const res = await fetch(`${API_BASE.value}/api/video-folders`);
@@ -473,6 +574,8 @@ const fetchVideosInFolder = async () => {
       thumbnail: '',
       url: `${API_BASE.value}/footage/${selectedFolder.value}/${filename}`,
     }));
+    fetchVideoDurations();
+    generateVideoThumbnails();
   } catch (error) {
     $q.notify({
       type: 'negative',
