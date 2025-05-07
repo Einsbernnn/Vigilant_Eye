@@ -18,6 +18,7 @@ import glob
 import atexit
 import platform
 import subprocess
+from telegram import Bot
 
 app = Flask(__name__)
 
@@ -44,6 +45,18 @@ motion_sensor_enabled = True
 # Add state for intruder detection
 intruder_active = False
 intruder_last_seen = 0
+
+# Telegram Bot setup
+TELEGRAM_BOT_TOKEN = "7749898460:AAGgwt-LBmAq7KOXWRA--HETJBTIWlofy84"
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+def send_telegram_notification(message):
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        print(f"[INFO] Telegram notification sent: {message}")
+    except Exception as e:
+        print(f"[ERROR] Failed to send Telegram notification: {e}")
 
 @app.route('/set-buzzer', methods=['POST'])
 def set_buzzer():
@@ -106,10 +119,12 @@ def pir_monitor_thread():
                 if name and name.lower() != 'unknown':
                     pir_notification_message = f"{name} seen{location_str} at {timestamp}"
                 else:
-                    # Only set notification if not already active
                     if not intruder_active:
                         pir_notification_message = f"Intruder was Detected{location_str} at {timestamp}"
                         intruder_active = True
+                # Send Telegram notification
+                if pir_notification_message:
+                    send_telegram_notification(pir_notification_message)
         else:
             pir_triggered_time = 0
             pir_notified = False
