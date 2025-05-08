@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import mimetypes
 import re
+import datetime
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -15,6 +16,24 @@ VIDEO_DIR = '/home/einsbern/facial_recognition/footage'
 VENV_PYTHON = '/home/einsbern/camenv/bin/python'
 TRAIN_SCRIPT = '/home/einsbern/facial_recognition/train_model.py'
 TRAIN_CWD = '/home/einsbern/facial_recognition'
+
+def parse_date_from_folder_name(name):
+    # Example: 'May, 07, 2025 - 14:23:45'
+    try:
+        return datetime.datetime.strptime(name, '%B, %d, %Y - %H:%M:%S')
+    except Exception:
+        return None
+
+def parse_date_from_video_filename(name):
+    # Example: '2025-05-07_14-23-45.mp4'
+    import re
+    m = re.match(r'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})', name)
+    if m:
+        try:
+            return datetime.datetime.strptime('_'.join(m.groups()), '%Y_%m_%d_%H_%M_%S')
+        except Exception:
+            return None
+    return None
 
 @app.route('/api/images')
 def list_images():
@@ -96,6 +115,10 @@ def list_folder_videos():
     if not os.path.isdir(folder_path):
         return jsonify({'error': 'Folder not found'}), 404
     videos = [f for f in os.listdir(folder_path) if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv'))]
+    def sort_key(name):
+        dt = parse_date_from_video_filename(name)
+        return (dt or datetime.datetime.min, name)
+    videos.sort(key=sort_key)
     return jsonify(videos)
 
 @app.route('/api/image-folders')
@@ -106,6 +129,10 @@ def list_image_folders():
 @app.route('/api/video-folders')
 def list_video_folders():
     folders = [entry.name for entry in os.scandir(VIDEO_DIR) if entry.is_dir()]
+    def sort_key(name):
+        dt = parse_date_from_folder_name(name)
+        return (dt or datetime.datetime.min, name)
+    folders.sort(key=sort_key)
     return jsonify(folders)
 
 @app.route('/dataset/<folder>/<filename>')

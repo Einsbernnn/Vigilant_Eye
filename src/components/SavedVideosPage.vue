@@ -352,7 +352,7 @@ const videoError = ref(false);
 
 const folderSearchQuery = ref('');
 const filteredFolders = computed(() => {
-  return folders.value.filter((folder) => {
+  const filtered = folders.value.filter((folder) => {
     const matchesSearchQuery = folder
       .toLowerCase()
       .includes(folderSearchQuery.value.toLowerCase());
@@ -365,6 +365,20 @@ const filteredFolders = computed(() => {
         (folderDate && folderDate <= new Date(dateRange.value.to)));
 
     return matchesSearchQuery && matchesDateRange;
+  });
+  // Sort by date (ascending, oldest first), fallback to alphabetical
+  return filtered.sort((a, b) => {
+    const dateA = parseDateFromFolderName(a);
+    const dateB = parseDateFromFolderName(b);
+    if (dateA && dateB) {
+      return dateA.getTime() - dateB.getTime();
+    } else if (dateA) {
+      return -1;
+    } else if (dateB) {
+      return 1;
+    } else {
+      return a.localeCompare(b);
+    }
   });
 });
 
@@ -498,12 +512,34 @@ const uploadVideos = async () => {
 
 // Helper to parse date from folder name (e.g., 'May, 07, 2025 - 14:23:45')
 function parseDateFromFolderName(folder: string): Date | null {
-  const match = folder.match(
+  // Try multiple formats
+  // 1. 'May, 06, 2025 - 08:53:35'
+  let match = folder.match(
     /([A-Za-z]+), (\d{2}), (\d{4}) - (\d{2}):(\d{2}):(\d{2})/
   );
-  if (!match) return null;
-  const [, month, day, year, hour, min, sec] = match;
-  return new Date(`${month} ${day}, ${year} ${hour}:${min}:${sec}`);
+  if (match) {
+    const [, month, day, year, hour, min, sec] = match;
+    return new Date(`${month} ${day}, ${year} ${hour}:${min}:${sec}`);
+  }
+  // 2. 'May 07, 2025, 12:58:02'
+  match = folder.match(/([A-Za-z]+) (\d{2}), (\d{4}), (\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, month, day, year, hour, min, sec] = match;
+    return new Date(`${month} ${day}, ${year} ${hour}:${min}:${sec}`);
+  }
+  // 3. 'May-5-2025' or 'May-06-2025'
+  match = folder.match(/([A-Za-z]+)-(\d{1,2})-(\d{4})/);
+  if (match) {
+    const [, month, day, year] = match;
+    return new Date(`${month} ${day}, ${year}`);
+  }
+  // 4. 'May 07, 2025' (no time)
+  match = folder.match(/([A-Za-z]+) (\d{2}), (\d{4})/);
+  if (match) {
+    const [, month, day, year] = match;
+    return new Date(`${month} ${day}, ${year}`);
+  }
+  return null;
 }
 
 // Helper to parse date from video filename (e.g., '2025-05-07_14-23-45.mp4')
@@ -685,10 +721,23 @@ function refreshFolders() {
 }
 
 function sortFolders() {
-  folders.value.sort((a, b) => a.localeCompare(b));
+  folders.value.sort((a, b) => {
+    const dateA = parseDateFromFolderName(a);
+    const dateB = parseDateFromFolderName(b);
+    if (dateA && dateB) {
+      // Ascending: oldest first
+      return dateA.getTime() - dateB.getTime();
+    } else if (dateA) {
+      return -1;
+    } else if (dateB) {
+      return 1;
+    } else {
+      return a.localeCompare(b);
+    }
+  });
   $q.notify({
     type: 'positive',
-    message: 'Folders sorted!',
+    message: 'Folders sorted by date!',
     icon: 'check_circle',
   });
 }
