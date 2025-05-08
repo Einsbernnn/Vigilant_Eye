@@ -121,7 +121,7 @@ pir_notified = False
 pir_notification_message = None
 
 def pir_monitor_thread():
-    global pir_last_state, pir_triggered_time, pir_notified, pir_notification_message, intruder_active, intruder_last_seen
+    global pir_last_state, pir_triggered_time, pir_notified, pir_notification_message, last_notification_time
     if not HAS_GPIO:
         return
     while True:
@@ -132,10 +132,6 @@ def pir_monitor_thread():
                 pir_triggered_time = now
                 pir_notified = False
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                # Use last detected name if available
-                global currentname
-                name = currentname if currentname and currentname != 'unknown' else None
-                # Get camera location from file if available
                 camera_location = None
                 try:
                     with open('camera_location.txt', 'r') as f:
@@ -143,22 +139,16 @@ def pir_monitor_thread():
                 except Exception:
                     camera_location = None
                 location_str = f" at your {camera_location}" if camera_location else ""
-                if name and name.lower() != 'unknown':
-                    pir_notification_message = f"{name} seen{location_str} at {timestamp}"
-                else:
-                    if not intruder_active:
-                        pir_notification_message = f"Intruder was Detected{location_str} at {timestamp}"
-                        intruder_active = True
-                    # Flicker LED on motion detection
-                    flicker_led()
-                # Send Telegram notification
-                if pir_notification_message:
+                # PIR motion notification anti-spam
+                if now - last_notification_time.get('pir_motion', 0) > NOTIFICATION_COOLDOWN:
+                    pir_notification_message = f"Motion detected{location_str} at {timestamp}"
                     send_telegram_notification(pir_notification_message)
+                    last_notification_time['pir_motion'] = now
+                flicker_led()
         else:
             pir_triggered_time = 0
             pir_notified = False
             pir_notification_message = None
-            intruder_active = False
         pir_last_state = pir_state
         time.sleep(0.5)
 
@@ -434,7 +424,9 @@ def recognize_and_draw(frame):
             # Flicker LED when unknown detected
             if led_enabled:
                 flicker_led()
-            if not intruder_active:
+            now_time = time.time()
+            # Intruder notification anti-spam
+            if not intruder_active or now_time - last_notification_time.get('intruder', 0) > NOTIFICATION_COOLDOWN:
                 intruder_active = True
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 camera_location = None
@@ -444,8 +436,16 @@ def recognize_and_draw(frame):
                 except Exception:
                     camera_location = None
                 location_str = f" at your {camera_location}" if camera_location else ""
-                message = f"🚨 Unknown person detected{location_str} at {timestamp}"
-                send_telegram_notification(message)
+                message = f"🚨 Intruder detected{location_str} at {timestamp}"
+                snap_filename = f"intruder_{int(now_time)}.jpg"
+                snap_filepath = os.path.join('/tmp', snap_filename)
+                cv2.imwrite(snap_filepath, frame)
+                try:
+                    with open(snap_filepath, 'rb') as f:
+                        bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=f, caption=message)
+                except Exception as e:
+                    print(f"[ERROR] Failed to send photo to Telegram: {e}")
+                last_notification_time['intruder'] = now_time
             # Keep beeping as long as unknown is present
             if now - last_beep_time > 1.0:
                 threading.Thread(target=beep, args=(1, 0.2)).start()
@@ -623,8 +623,26 @@ def handle_telegram_commands():
 /snap - Take a snapshot and send to Telegram
 /status - Show current status
 /help - Show this help message
+/patrol - Start servo patrol motion
 """
         update.message.reply_text(help_msg)
+
+    def patrol_cmd(update, context):
+        def patrol_motion():
+            if not HAS_GPIO or not servo_enabled:
+                return
+            # Sweep from left (0 deg) to right (180 deg) and back
+            for angle in list(range(0, 181, 10)) + list(range(180, -1, -10)):
+                servo.ChangeDutyCycle(2.5 + (angle / 180.0) * 10)
+                time.sleep(0.05)
+            servo.ChangeDutyCycle(0)
+        update.message.reply_text("🚨 Patrol started: Servo will sweep left to right.")
+        def repeat_patrol():
+            while True:
+                patrol_motion()
+                time.sleep(300)  # 5 minutes
+        t = threading.Thread(target=repeat_patrol, daemon=True)
+        t.start()
 
     # Add command handlers
     dp.add_handler(CommandHandler("enable_motion", enable_motionsense_cmd))
@@ -640,6 +658,7 @@ def handle_telegram_commands():
     dp.add_handler(CommandHandler("status", status_cmd))
     dp.add_handler(CommandHandler("help", help_cmd))
     dp.add_handler(CommandHandler("start", help_cmd))  # /start also shows help
+    dp.add_handler(CommandHandler("patrol", patrol_cmd))
 
     updater.start_polling()
     return updater
