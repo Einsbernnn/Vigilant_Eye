@@ -19,28 +19,28 @@ import atexit
 import platform
 import subprocess
 from telegram import Bot
+from telegram.ext import CommandHandler, Updater, MessageHandler, Filters
 
 app = Flask(__name__)
 
-# GPIO setup for Raspberry Pi
 try:
     import RPi.GPIO as GPIO
     GPIO.setmode(GPIO.BCM)
     BUZZER_PIN = 17
     SERVO_PIN = 23
     PIR_PIN = 22
-    LED_PIN = 12
+    LED_PIN = 12  # GPIO12 for LED flickering
     GPIO.setup(BUZZER_PIN, GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)
     GPIO.setup(PIR_PIN, GPIO.IN)
-    GPIO.setup(LED_PIN, GPIO.OUT)
+    GPIO.setup(LED_PIN, GPIO.OUT)  # Setup LED
     servo = GPIO.PWM(SERVO_PIN, 50)  # 50Hz for servo
     servo.start(0)
     HAS_GPIO = True
 except (ImportError, RuntimeError):
     HAS_GPIO = False
 
-# State for enabling/disabling components
+# State for enabling/disabling buzzer, motion sensor, LED, and servo
 buzzer_enabled = True
 motion_sensor_enabled = True
 servo_enabled = True
@@ -66,17 +66,45 @@ def send_telegram_notification(message):
     except Exception as e:
         print(f"[ERROR] Failed to send Telegram notification: {e}")
 
-# LED flicker function
-def flicker_led(times=5, duration=0.1):
-    if not HAS_GPIO or not led_enabled:
-        return
-    for _ in range(times):
-        GPIO.output(LED_PIN, GPIO.HIGH)
-        time.sleep(duration)
-        GPIO.output(LED_PIN, GPIO.LOW)
-        time.sleep(duration)
+@app.route('/set-buzzer', methods=['POST'])
+def set_buzzer():
+    global buzzer_enabled
+    data = request.get_json(force=True, silent=True)
+    if data and 'enabled' in data:
+        buzzer_enabled = bool(data['enabled'])
+        return jsonify({'buzzer_enabled': buzzer_enabled}), 200
+    return jsonify({'error': 'Missing enabled field'}), 400
+
+@app.route('/set-motion-sensor', methods=['POST'])
+def set_motion_sensor():
+    global motion_sensor_enabled
+    data = request.get_json(force=True, silent=True)
+    if data and 'enabled' in data:
+        motion_sensor_enabled = bool(data['enabled'])
+        return jsonify({'motion_sensor_enabled': motion_sensor_enabled}), 200
+    return jsonify({'error': 'Missing enabled field'}), 400
+
+# Set LED enable/disable
+@app.route('/set-led', methods=['POST'])
+def set_led():
+    global led_enabled
+    data = request.get_json(force=True, silent=True)
+    if data and 'enabled' in data:
+        led_enabled = bool(data['enabled'])
+        return jsonify({'led_enabled': led_enabled}), 200
+    return jsonify({'error': 'Missing enabled field'}), 400
+
+# Flicker the LED
+def flicker_led():
+    if HAS_GPIO and led_enabled:
+        for _ in range(3):  # Flicker 3 times
+            GPIO.output(LED_PIN, GPIO.HIGH)
+            time.sleep(0.2)
+            GPIO.output(LED_PIN, GPIO.LOW)
+            time.sleep(0.2)
 
 # Buzzer beep function
+# Only beep if buzzer_enabled is True
 def beep(times=1, duration=0.2):
     if not HAS_GPIO or not buzzer_enabled:
         return
@@ -104,6 +132,9 @@ def pir_monitor_thread():
                 pir_triggered_time = now
                 pir_notified = False
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # Use last detected name if available
+                global currentname
+                name = currentname if currentname and currentname != 'unknown' else None
                 # Get camera location from file if available
                 camera_location = None
                 try:
@@ -112,15 +143,22 @@ def pir_monitor_thread():
                 except Exception:
                     camera_location = None
                 location_str = f" at your {camera_location}" if camera_location else ""
-                pir_notification_message = f"Motion detected{location_str} at {timestamp}"
+                if name and name.lower() != 'unknown':
+                    pir_notification_message = f"{name} seen{location_str} at {timestamp}"
+                else:
+                    if not intruder_active:
+                        pir_notification_message = f"Intruder was Detected{location_str} at {timestamp}"
+                        intruder_active = True
+                    # Flicker LED on motion detection
+                    flicker_led()
                 # Send Telegram notification
-                send_telegram_notification(pir_notification_message)
-                # Flicker LED for motion detection
-                threading.Thread(target=flicker_led, args=(3, 0.2)).start()
+                if pir_notification_message:
+                    send_telegram_notification(pir_notification_message)
         else:
             pir_triggered_time = 0
             pir_notified = False
             pir_notification_message = None
+            intruder_active = False
         pir_last_state = pir_state
         time.sleep(0.5)
 
@@ -139,7 +177,7 @@ class NonMirroredTracker:
         return abs(norm_offset) > 1
 
     def move_servo(self, offset, frame_width):
-        if not HAS_GPIO or time.time() - self.last_move_time < self.move_delay or not servo_enabled:
+        if not HAS_GPIO or time.time() - self.last_move_time < self.move_delay:
             return
 
         # Calculate direction (corrected for mirrored camera)
@@ -209,55 +247,6 @@ def get_next_video_filename(folder_path):
     else:
         filename = now.strftime('%Y-%m-%d_%H-%M-%S') + '.mov'
     return filename
-
-# API Endpoints for controlling components
-@app.route('/enable_motionsense', methods=['POST'])
-def enable_motionsense():
-    global motion_sensor_enabled
-    motion_sensor_enabled = True
-    return jsonify({'status': 'success', 'motion_sensor_enabled': True})
-
-@app.route('/disable_motionsense', methods=['POST'])
-def disable_motionsense():
-    global motion_sensor_enabled
-    motion_sensor_enabled = False
-    return jsonify({'status': 'success', 'motion_sensor_enabled': False})
-
-@app.route('/enable_sounds', methods=['POST'])
-def enable_sounds():
-    global buzzer_enabled
-    buzzer_enabled = True
-    return jsonify({'status': 'success', 'buzzer_enabled': True})
-
-@app.route('/disable_sounds', methods=['POST'])
-def disable_sounds():
-    global buzzer_enabled
-    buzzer_enabled = False
-    return jsonify({'status': 'success', 'buzzer_enabled': False})
-
-@app.route('/enable_servo', methods=['POST'])
-def enable_servo():
-    global servo_enabled
-    servo_enabled = True
-    return jsonify({'status': 'success', 'servo_enabled': True})
-
-@app.route('/disable_servo', methods=['POST'])
-def disable_servo():
-    global servo_enabled
-    servo_enabled = False
-    return jsonify({'status': 'success', 'servo_enabled': False})
-
-@app.route('/enable_led', methods=['POST'])
-def enable_led():
-    global led_enabled
-    led_enabled = True
-    return jsonify({'status': 'success', 'led_enabled': True})
-
-@app.route('/disable_led', methods=['POST'])
-def disable_led():
-    global led_enabled
-    led_enabled = False
-    return jsonify({'status': 'success', 'led_enabled': False})
 
 @app.route('/start-recording', methods=['POST'])
 def start_recording():
@@ -355,6 +344,30 @@ def pir_notification():
         return jsonify({'notification': msg})
     return jsonify({'notification': None})
 
+@app.route('/set-servo-angle', methods=['POST'])
+def set_servo_angle():
+    global servo_enabled
+    if not HAS_GPIO or not servo_enabled:
+        return jsonify({'error': 'Servo not available'}), 400
+    data = request.get_json(force=True, silent=True)
+    angle = data.get('angle')
+    if angle is None or not (0 <= angle <= 180):
+        return jsonify({'error': 'Invalid angle'}), 400
+    # Convert angle to duty cycle (adjust for your servo)
+    duty_cycle = 2.5 + (angle / 180.0) * 10
+    servo.ChangeDutyCycle(duty_cycle)
+    time.sleep(0.3)
+    servo.ChangeDutyCycle(0)
+    return jsonify({'status': 'success', 'angle': angle}), 200
+
+@app.route('/snap', methods=['POST'])
+def snap_picture():
+    frame = vs.read()
+    filename = f"snap_{int(time.time())}.jpg"
+    filepath = os.path.join('/tmp', filename)
+    cv2.imwrite(filepath, frame)
+    return jsonify({'status': 'success', 'filepath': filepath, 'filename': filename}), 200
+
 def cleanup_recording():
     global recording, recording_writer
     with recording_lock:
@@ -415,13 +428,14 @@ def recognize_and_draw(frame):
         cv2.line(frame, (frame_center + threshold, 0),
                 (frame_center + threshold, frame.shape[0]), (0, 0, 255), 1)
 
-    # Buzzer and LED logic
     now = time.time()
     with beep_lock:
         if "Unknown" in names:
+            # Flicker LED when unknown detected
+            if led_enabled:
+                flicker_led()
             if not intruder_active:
                 intruder_active = True
-                # Send Telegram notification for unknown person
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 camera_location = None
                 try:
@@ -432,8 +446,6 @@ def recognize_and_draw(frame):
                 location_str = f" at your {camera_location}" if camera_location else ""
                 message = f"🚨 Unknown person detected{location_str} at {timestamp}"
                 send_telegram_notification(message)
-                # Flicker LED for unknown person
-                threading.Thread(target=flicker_led, args=(5, 0.1)).start()
             # Keep beeping as long as unknown is present
             if now - last_beep_time > 1.0:
                 threading.Thread(target=beep, args=(1, 0.2)).start()
@@ -511,6 +523,131 @@ def gen_frames():
 @app.route('/video')
 def video():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def handle_telegram_commands():
+    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    def enable_motionsense_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-motion-sensor', json={'enabled': True})
+        update.message.reply_text("✅ Motion sensor enabled")
+
+    def disable_motionsense_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-motion-sensor', json={'enabled': False})
+        update.message.reply_text("❌ Motion sensor disabled")
+
+    def enable_sounds_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-buzzer', json={'enabled': True})
+        update.message.reply_text("🔔 Sounds enabled")
+
+    def disable_sounds_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-buzzer', json={'enabled': False})
+        update.message.reply_text("🔕 Sounds disabled")
+
+    def enable_servo_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-servo', json={'enabled': True})
+        update.message.reply_text("🔄 Servo enabled")
+
+    def disable_servo_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-servo', json={'enabled': False})
+        update.message.reply_text("⏹ Servo disabled")
+
+    def enable_led_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-led', json={'enabled': True})
+        update.message.reply_text("💡 LED enabled")
+
+    def disable_led_cmd(update, context):
+        with app.test_client() as client:
+            client.post('/set-led', json={'enabled': False})
+        update.message.reply_text("🌑 LED disabled")
+
+    def set_servo_angle_cmd(update, context):
+        try:
+            angle = int(context.args[0])
+            if not (0 <= angle <= 180):
+                update.message.reply_text("❗ Angle must be between 0 and 180.")
+                return
+        except (IndexError, ValueError):
+            update.message.reply_text("Usage: /servo_angle <0-180>")
+            return
+        with app.test_client() as client:
+            resp = client.post('/set-servo-angle', json={'angle': angle})
+            if resp.status_code == 200:
+                update.message.reply_text(f"🔄 Servo moved to {angle}°")
+            else:
+                update.message.reply_text("❗ Failed to move servo.")
+
+    def snap_cmd(update, context):
+        with app.test_client() as client:
+            resp = client.post('/snap')
+            if resp.status_code == 200:
+                data = resp.get_json()
+                filepath = data.get('filepath')
+                if filepath and os.path.exists(filepath):
+                    with open(filepath, 'rb') as f:
+                        update.message.reply_photo(f)
+                else:
+                    update.message.reply_text("❗ Failed to take snapshot.")
+            else:
+                update.message.reply_text("❗ Failed to take snapshot.")
+
+    def status_cmd(update, context):
+        status_msg = f"""
+📊 System Status:
+- Motion Sensor: {'✅' if motion_sensor_enabled else '❌'}
+- Sounds: {'🔔' if buzzer_enabled else '🔕'}
+- Servo: {'🔄' if servo_enabled else '⏹'}
+- LED: {'💡' if led_enabled else '🌑'}
+"""
+        update.message.reply_text(status_msg)
+
+    def help_cmd(update, context):
+        help_msg = """
+🤖 Available Commands:
+/enable_motion - Enable motion sensor
+/disable_motion - Disable motion sensor
+/enable_sound - Enable sounds
+/disable_sound - Disable sounds
+/enable_servo - Enable servo
+/disable_servo - Disable servo
+/enable_led - Enable LED
+/disable_led - Disable LED
+/servo_angle <0-180> - Move servo to specified angle
+/snap - Take a snapshot and send to Telegram
+/status - Show current status
+/help - Show this help message
+"""
+        update.message.reply_text(help_msg)
+
+    # Add command handlers
+    dp.add_handler(CommandHandler("enable_motion", enable_motionsense_cmd))
+    dp.add_handler(CommandHandler("disable_motion", disable_motionsense_cmd))
+    dp.add_handler(CommandHandler("enable_sound", enable_sounds_cmd))
+    dp.add_handler(CommandHandler("disable_sound", disable_sounds_cmd))
+    dp.add_handler(CommandHandler("enable_servo", enable_servo_cmd))
+    dp.add_handler(CommandHandler("disable_servo", disable_servo_cmd))
+    dp.add_handler(CommandHandler("enable_led", enable_led_cmd))
+    dp.add_handler(CommandHandler("disable_led", disable_led_cmd))
+    dp.add_handler(CommandHandler("servo_angle", set_servo_angle_cmd))
+    dp.add_handler(CommandHandler("snap", snap_cmd))
+    dp.add_handler(CommandHandler("status", status_cmd))
+    dp.add_handler(CommandHandler("help", help_cmd))
+    dp.add_handler(CommandHandler("start", help_cmd))  # /start also shows help
+
+    updater.start_polling()
+    return updater
+
+# Start the Telegram command handler in a separate thread
+telegram_thread = threading.Thread(target=handle_telegram_commands)
+telegram_thread.daemon = True
+telegram_thread.start()
 
 if __name__ == '__main__':
     try:
