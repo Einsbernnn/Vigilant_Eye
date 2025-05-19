@@ -12,7 +12,7 @@ save_path = os.path.join(base_dir, name)
 os.makedirs(save_path, exist_ok=True)
 
 # 🎥 Use AVFoundation backend for Mac FaceTime camera
-cam = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+cam = cv2.VideoCapture(2, cv2.CAP_AVFOUNDATION)
 
 # 🖼️ Set up window
 cv2.namedWindow("press space to take a photo", cv2.WINDOW_NORMAL)

@@ -288,5 +288,49 @@ def train_model_stream():
             yield f'data: ERROR: {str(e)}\n\n'
     return Response(generate(), mimetype='text/event-stream')
 
+@app.route('/api/get-logs')
+def api_get_logs():
+    folder = request.args.get('folder')
+    video = request.args.get('video')
+    print(f"[DEBUG] /api/get-logs called with folder={folder}, video={video}")
+    if not (folder and video):
+        return jsonify({'error': 'Missing folder or video'}), 400
+    folder_path = os.path.join(VIDEO_DIR, folder)
+    base, _ = os.path.splitext(video)
+    log_path = os.path.join(folder_path, f'{base}.log')
+    print(f"[DEBUG] Looking for log_path: {log_path}")
+    logs = []
+    # Fallback: if .log for requested video doesn't exist, try any .log file with the same base name
+    if not os.path.exists(log_path):
+        for fname in os.listdir(folder_path):
+            if fname.startswith(base) and fname.endswith('.log'):
+                log_path = os.path.join(folder_path, fname)
+                print(f"[DEBUG] Fallback found log_path: {log_path}")
+                break
+    if os.path.exists(log_path):
+        with open(log_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split('|', 2)
+                if len(parts) == 3:
+                    event_type, timestamp, extra_str = parts
+                    try:
+                        import json
+                        extra = json.loads(extra_str)
+                    except Exception:
+                        extra = {}
+                    logs.append({
+                        'event_type': event_type,
+                        'timestamp': float(timestamp),
+                        'extra': extra
+                    })
+    else:
+        print(f"[DEBUG] No log file found for {base} in {folder_path}")
+    print(f"[DEBUG] Returning {len(logs)} log entries")
+    return jsonify(logs)
+
+@app.route('/get-logs')
+def get_logs_alias():
+    return api_get_logs()
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
