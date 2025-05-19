@@ -231,33 +231,35 @@
           <div v-if="logs.length === 0" class="text-grey q-mb-md">
             No logs found for this video.
           </div>
-          <q-list v-else>
-            <q-item
-              v-for="(log, idx) in logs"
-              :key="idx"
-              clickable
-              @click="seekToTimestamp(log.timestamp)"
-            >
-              <q-item-section>
-                <q-badge
-                  :color="
-                    log.event_type === 'motion'
-                      ? 'primary'
-                      : log.event_type === 'unknown'
-                      ? 'negative'
-                      : 'positive'
-                  "
-                  class="q-mr-sm"
-                >
-                  {{ log.event_type }}
-                </q-badge>
-                <span>{{ formatDuration(log.timestamp) }}</span>
-                <span v-if="log.extra && log.extra.name">
-                  - {{ log.extra.name }}
-                </span>
-              </q-item-section>
-            </q-item>
-          </q-list>
+          <div v-else class="logs-scrollable">
+            <q-list>
+              <q-item
+                v-for="(log, idx) in logs"
+                :key="idx"
+                clickable
+                @click="seekToTimestamp(log.timestamp)"
+              >
+                <q-item-section>
+                  <q-badge
+                    :color="
+                      log.event_type === 'motion'
+                        ? 'primary'
+                        : log.event_type === 'unknown'
+                        ? 'negative'
+                        : 'positive'
+                    "
+                    class="q-mr-sm"
+                  >
+                    {{ log.event_type }}
+                  </q-badge>
+                  <span>{{ formatDuration(log.timestamp) }}</span>
+                  <span v-if="log.extra && log.extra.name">
+                    - {{ log.extra.name }}
+                  </span>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
         </q-card-section>
         <q-card-actions
           align="right"
@@ -351,6 +353,13 @@
 .date-picker {
   max-width: 300px;
   flex-grow: 1;
+}
+
+.logs-scrollable {
+  max-height: 350px;
+  min-height: 120px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 </style>
 

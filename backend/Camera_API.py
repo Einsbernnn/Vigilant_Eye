@@ -440,7 +440,7 @@ def recognize_and_draw(frame):
                 snap_filename = f"intruder_{int(now_time)}.jpg"
                 snap_filepath = os.path.join('/tmp', snap_filename)
                 cv2.imwrite(snap_filepath, frame)
-                
+
                 # Update last intruder alert
                 last_intruder_alert = {
                     'has_alert': True,
@@ -449,7 +449,7 @@ def recognize_and_draw(frame):
                     'message': message,
                     'image_url': f'/intruder-image/{snap_filename}'
                 }
-                
+
                 try:
                     with open(snap_filepath, 'rb') as f:
                         bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=f, caption=message)
@@ -841,7 +841,7 @@ def alert_interface():
     <body class="bg-light">
         <div class="container py-4">
             <h1 class="text-center mb-4">Security Alert Interface</h1>
-            
+
             <!-- Quick Actions Panel -->
             <div class="row mb-4">
                 <div class="col-12">
@@ -891,7 +891,7 @@ def alert_interface():
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-md-6">
                     <div class="alert-card card">
                         <div class="card-body">
@@ -966,7 +966,7 @@ def alert_interface():
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="col-md-6">
                     <div class="alert-card card">
                         <div class="card-body">
@@ -1115,7 +1115,7 @@ def alert_interface():
                         updateStatus('motion-status', data.motion_sensor_enabled);
                         updateStatus('sound-status', data.buzzer_enabled);
                         updateStatus('led-status', data.led_enabled);
-                        
+
                         document.getElementById('motion-toggle').checked = data.motion_sensor_enabled;
                         document.getElementById('sound-toggle').checked = data.buzzer_enabled;
                         document.getElementById('led-toggle').checked = data.led_enabled;
@@ -1125,7 +1125,7 @@ def alert_interface():
             // Servo control
             const servoSlider = document.getElementById('servo-slider');
             const servoValue = document.getElementById('servo-value');
-            
+
             servoSlider.addEventListener('input', function() {
                 servoValue.textContent = this.value + '°';
             });
@@ -1250,18 +1250,18 @@ def alert_interface():
                             document.getElementById('no-intruder-message').classList.add('d-none');
                             document.getElementById('intruder-image').classList.remove('d-none');
                             document.getElementById('intruder-details').classList.remove('d-none');
-                            
+
                             document.getElementById('intruder-image').src = data.image_url;
                             document.getElementById('intruder-time').textContent = data.timestamp;
                             document.getElementById('intruder-location').textContent = data.location;
-                            
+
                             // Add to history
                             addAlertToHistory({
                                 type: '🚨 Intruder Alert',
                                 time: data.timestamp,
                                 message: data.message
                             });
-                            
+
                             // Show notification
                             showNotification('🚨 Intruder Alert!', data.message);
                         }
@@ -1483,14 +1483,14 @@ def get_network_status():
         # Get WiFi SSID
         ssid = subprocess.check_output(['iwconfig', 'wlan0']).decode('utf-8')
         ssid = ssid.split('ESSID:"')[1].split('"')[0] if 'ESSID:"' in ssid else 'Not Connected'
-        
+
         # Get IP address
         ip = subprocess.check_output(['hostname', '-I']).decode('utf-8').split()[0]
-        
+
         # Get signal strength
         signal = subprocess.check_output(['iwconfig', 'wlan0']).decode('utf-8')
         signal = signal.split('Signal level=')[1].split()[0] if 'Signal level=' in signal else 'Unknown'
-        
+
         return jsonify({
             'ssid': ssid,
             'ip': ip,
@@ -1539,29 +1539,29 @@ def train_face():
     try:
         if 'image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
-        
+
         image = request.files['image']
         name = request.form.get('name', 'Unknown')
-        
+
         # Save image temporarily
         temp_path = f'/tmp/train_{int(time.time())}.jpg'
         image.save(temp_path)
-        
+
         # Process image with face_recognition
         image = face_recognition.load_image_file(temp_path)
         encodings = face_recognition.face_encodings(image)
-        
+
         if not encodings:
             return jsonify({'error': 'No face detected in image'}), 400
-        
+
         # Update encodings.pickle
         data = pickle.loads(open(encodingsP, "rb").read())
         data["encodings"].append(encodings[0])
         data["names"].append(name)
-        
+
         with open(encodingsP, "wb") as f:
             f.write(pickle.dumps(data))
-        
+
         os.remove(temp_path)
         return jsonify({'success': True, 'message': f'Face trained for {name}'})
     except Exception as e:
