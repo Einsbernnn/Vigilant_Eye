@@ -3,7 +3,7 @@
 #Camera_API.py
 #dev by EinsbernSystems
 
-from flask import Flask, Response, request, jsonify
+from flask import Flask, Response, request, jsonify, send_file
 from imutils.video import VideoStream
 import face_recognition
 import imutils
@@ -182,7 +182,7 @@ class NonMirroredTracker:
         servo.ChangeDutyCycle(duty_cycle)
         time.sleep(0.1)
         servo.ChangeDutyCycle(0)
-        self.last_move_time = time.time()
+        self.last_move_time = time.sleep(0.1)
 
 # Initialize tracker
 tracker = NonMirroredTracker()
@@ -368,7 +368,7 @@ def cleanup_recording():
 atexit.register(cleanup_recording)
 
 def recognize_and_draw(frame):
-    global currentname, last_beep_time, intruder_active, intruder_last_seen, last_notification_time
+    global currentname, last_beep_time, intruder_active, intruder_last_seen, last_notification_time, last_intruder_alert
 
     # Convert from BGR to RGB for face_recognition
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -440,6 +440,16 @@ def recognize_and_draw(frame):
                 snap_filename = f"intruder_{int(now_time)}.jpg"
                 snap_filepath = os.path.join('/tmp', snap_filename)
                 cv2.imwrite(snap_filepath, frame)
+                
+                # Update last intruder alert
+                last_intruder_alert = {
+                    'has_alert': True,
+                    'timestamp': timestamp,
+                    'location': camera_location or 'Unknown location',
+                    'message': message,
+                    'image_url': f'/intruder-image/{snap_filename}'
+                }
+                
                 try:
                     with open(snap_filepath, 'rb') as f:
                         bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=f, caption=message)
@@ -667,6 +677,947 @@ def handle_telegram_commands():
 telegram_thread = threading.Thread(target=handle_telegram_commands)
 telegram_thread.daemon = True
 telegram_thread.start()
+
+@app.route('/alert-interface')
+def alert_interface():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Security Alert Interface</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+        <style>
+            .alert-card {
+                border-radius: 15px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                margin-bottom: 20px;
+                transition: all 0.3s ease;
+            }
+            .alert-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            }
+            .status-indicator {
+                width: 15px;
+                height: 15px;
+                border-radius: 50%;
+                display: inline-block;
+                margin-right: 10px;
+            }
+            .status-active {
+                background-color: #28a745;
+                box-shadow: 0 0 10px #28a745;
+            }
+            .status-inactive {
+                background-color: #dc3545;
+                box-shadow: 0 0 10px #dc3545;
+            }
+            .servo-control {
+                width: 100%;
+                margin: 20px 0;
+            }
+            .intruder-image {
+                max-width: 100%;
+                border-radius: 10px;
+                margin-top: 10px;
+            }
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                animation: slideIn 0.5s ease-out;
+            }
+            @keyframes slideIn {
+                from { transform: translateX(100%); }
+                to { transform: translateX(0); }
+            }
+            .control-panel {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 15px;
+                margin-bottom: 20px;
+            }
+            .btn-control {
+                margin: 5px;
+                min-width: 120px;
+            }
+            .video-container {
+                position: relative;
+                width: 100%;
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .video-feed {
+                width: 100%;
+                border-radius: 10px;
+            }
+            .alert-history {
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            .alert-item {
+                padding: 10px;
+                border-left: 4px solid #dc3545;
+                margin-bottom: 10px;
+                background: #fff;
+                border-radius: 0 10px 10px 0;
+            }
+            .health-indicator {
+                padding: 10px;
+                border-radius: 10px;
+                margin-bottom: 10px;
+            }
+            .quick-action {
+                text-align: center;
+                padding: 15px;
+                border-radius: 10px;
+                background: #f8f9fa;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            .quick-action:hover {
+                background: #e9ecef;
+                transform: scale(1.05);
+            }
+            .quick-action i {
+                font-size: 24px;
+                margin-bottom: 10px;
+            }
+            .network-status {
+                padding: 15px;
+                border-radius: 10px;
+                background: #f8f9fa;
+                margin-bottom: 10px;
+            }
+            .recording-item {
+                padding: 10px;
+                border-left: 4px solid #0d6efd;
+                margin-bottom: 10px;
+                background: #fff;
+                border-radius: 0 10px 10px 0;
+            }
+            .log-entry {
+                font-family: monospace;
+                padding: 5px;
+                border-bottom: 1px solid #dee2e6;
+            }
+            .face-training {
+                padding: 20px;
+                border-radius: 10px;
+                background: #f8f9fa;
+            }
+            .recording-actions {
+                display: flex;
+                gap: 10px;
+                margin-top: 5px;
+            }
+            .face-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px;
+                background: #fff;
+                border-radius: 10px;
+                margin-bottom: 10px;
+            }
+            .face-count {
+                background: #e9ecef;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.9em;
+            }
+            .delete-btn {
+                color: #dc3545;
+                cursor: pointer;
+            }
+            .delete-btn:hover {
+                color: #bd2130;
+            }
+        </style>
+    </head>
+    <body class="bg-light">
+        <div class="container py-4">
+            <h1 class="text-center mb-4">Security Alert Interface</h1>
+            
+            <!-- Quick Actions Panel -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Quick Actions</h5>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="quick-action" onclick="takeSnapshot()">
+                                        <i class="bi bi-camera"></i>
+                                        <div>Take Snapshot</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="quick-action" onclick="togglePatrol()">
+                                        <i class="bi bi-shield-check"></i>
+                                        <div>Toggle Patrol</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="quick-action" onclick="toggleRecording()">
+                                        <i class="bi bi-record-circle"></i>
+                                        <div>Toggle Recording</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="quick-action" onclick="showSystemStatus()">
+                                        <i class="bi bi-info-circle"></i>
+                                        <div>System Status</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Control Panels -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Live Video Feed</h5>
+                            <div class="video-container">
+                                <img src="/video" class="video-feed" alt="Live Feed">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">System Health</h5>
+                            <div id="health-container">
+                                <div class="health-indicator">
+                                    <div class="d-flex justify-content-between">
+                                        <span>CPU Usage</span>
+                                        <span id="cpu-usage">--</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div id="cpu-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="health-indicator">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Memory Usage</span>
+                                        <span id="memory-usage">--</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div id="memory-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="health-indicator">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Disk Space</span>
+                                        <span id="disk-usage">--</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div id="disk-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status and Control Panels -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">System Status</h5>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="status-indicator" id="motion-status"></span>
+                                    Motion Sensor
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="motion-toggle">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <div>
+                                    <span class="status-indicator" id="sound-status"></span>
+                                    Sound Alerts
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="sound-toggle">
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <div>
+                                    <span class="status-indicator" id="led-status"></span>
+                                    LED Indicator
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="led-toggle">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Servo Control</h5>
+                            <div class="servo-control">
+                                <input type="range" class="form-range" id="servo-slider" min="0" max="180" value="90">
+                                <div class="text-center mt-2">
+                                    <span id="servo-value">90°</span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-center mt-3">
+                                <button class="btn btn-primary btn-control" id="patrol-btn">Start Patrol</button>
+                                <button class="btn btn-danger btn-control" id="stop-patrol-btn">Stop Patrol</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert History Panel -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Alert History</h5>
+                            <div class="alert-history" id="alert-history">
+                                <!-- Alert items will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Status Panel -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Network Status</h5>
+                            <div id="network-status">
+                                <div class="network-status">
+                                    <div class="d-flex justify-content-between">
+                                        <span>WiFi Network:</span>
+                                        <span id="wifi-ssid">--</span>
+                                    </div>
+                                </div>
+                                <div class="network-status">
+                                    <div class="d-flex justify-content-between">
+                                        <span>IP Address:</span>
+                                        <span id="ip-address">--</span>
+                                    </div>
+                                </div>
+                                <div class="network-status">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Signal Strength:</span>
+                                        <span id="signal-strength">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recording History Panel with Actions -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Recording History</h5>
+                            <div id="recording-history">
+                                <!-- Recording items will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trained Faces Management Panel -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Trained Faces</h5>
+                            <div id="trained-faces">
+                                <!-- Face items will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Face Training Panel -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">Face Recognition Training</h5>
+                            <div class="face-training">
+                                <form id="face-training-form" class="mb-3">
+                                    <div class="mb-3">
+                                        <label for="name" class="form-label">Person's Name</label>
+                                        <input type="text" class="form-control" id="name" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="face-image" class="form-label">Face Image</label>
+                                        <input type="file" class="form-control" id="face-image" accept="image/*" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Train Face</button>
+                                </form>
+                                <div id="training-result"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Logs Panel -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert-card card">
+                        <div class="card-body">
+                            <h5 class="card-title">System Logs</h5>
+                            <div id="system-logs" class="bg-dark text-light p-3" style="max-height: 300px; overflow-y: auto;">
+                                <!-- Log entries will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Status indicators
+            function updateStatus(elementId, isActive) {
+                const indicator = document.getElementById(elementId);
+                indicator.className = 'status-indicator ' + (isActive ? 'status-active' : 'status-inactive');
+            }
+
+            // Initialize status
+            function initializeStatus() {
+                fetch('/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateStatus('motion-status', data.motion_sensor_enabled);
+                        updateStatus('sound-status', data.buzzer_enabled);
+                        updateStatus('led-status', data.led_enabled);
+                        
+                        document.getElementById('motion-toggle').checked = data.motion_sensor_enabled;
+                        document.getElementById('sound-toggle').checked = data.buzzer_enabled;
+                        document.getElementById('led-toggle').checked = data.led_enabled;
+                    });
+            }
+
+            // Servo control
+            const servoSlider = document.getElementById('servo-slider');
+            const servoValue = document.getElementById('servo-value');
+            
+            servoSlider.addEventListener('input', function() {
+                servoValue.textContent = this.value + '°';
+            });
+
+            servoSlider.addEventListener('change', function() {
+                fetch('/set-servo-angle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ angle: parseInt(this.value) })
+                });
+            });
+
+            // Toggle controls
+            document.getElementById('motion-toggle').addEventListener('change', function() {
+                fetch('/set-motion-sensor', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ enabled: this.checked })
+                }).then(() => updateStatus('motion-status', this.checked));
+            });
+
+            document.getElementById('sound-toggle').addEventListener('change', function() {
+                fetch('/set-buzzer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ enabled: this.checked })
+                }).then(() => updateStatus('sound-status', this.checked));
+            });
+
+            document.getElementById('led-toggle').addEventListener('change', function() {
+                fetch('/set-led', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ enabled: this.checked })
+                }).then(() => updateStatus('led-status', this.checked));
+            });
+
+            // Patrol controls
+            document.getElementById('patrol-btn').addEventListener('click', function() {
+                fetch('/patrol', { method: 'POST' });
+            });
+
+            document.getElementById('stop-patrol-btn').addEventListener('click', function() {
+                fetch('/stop-patrol', { method: 'POST' });
+            });
+
+            // New functions for enhanced features
+            function takeSnapshot() {
+                fetch('/snap', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showNotification('📸 Snapshot', 'Snapshot taken successfully');
+                        }
+                    });
+            }
+
+            function togglePatrol() {
+                const patrolBtn = document.getElementById('patrol-btn');
+                if (patrolBtn.textContent === 'Start Patrol') {
+                    fetch('/patrol', { method: 'POST' });
+                    patrolBtn.textContent = 'Stop Patrol';
+                } else {
+                    fetch('/stop-patrol', { method: 'POST' });
+                    patrolBtn.textContent = 'Start Patrol';
+                }
+            }
+
+            function toggleRecording() {
+                fetch('/toggle-recording', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        showNotification('🎥 Recording', data.message);
+                    });
+            }
+
+            function showSystemStatus() {
+                fetch('/system-status')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateHealthIndicators(data);
+                    });
+            }
+
+            function updateHealthIndicators(data) {
+                document.getElementById('cpu-usage').textContent = data.cpu + '%';
+                document.getElementById('cpu-bar').style.width = data.cpu + '%';
+                document.getElementById('memory-usage').textContent = data.memory + '%';
+                document.getElementById('memory-bar').style.width = data.memory + '%';
+                document.getElementById('disk-usage').textContent = data.disk + '%';
+                document.getElementById('disk-bar').style.width = data.disk + '%';
+            }
+
+            function addAlertToHistory(alert) {
+                const history = document.getElementById('alert-history');
+                const alertItem = document.createElement('div');
+                alertItem.className = 'alert-item';
+                alertItem.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <strong>${alert.type}</strong>
+                        <small>${alert.time}</small>
+                    </div>
+                    <div>${alert.message}</div>
+                `;
+                history.insertBefore(alertItem, history.firstChild);
+            }
+
+            // Enhanced intruder alert handling
+            function checkIntruderAlerts() {
+                fetch('/intruder-alert')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_alert) {
+                            document.getElementById('no-intruder-message').classList.add('d-none');
+                            document.getElementById('intruder-image').classList.remove('d-none');
+                            document.getElementById('intruder-details').classList.remove('d-none');
+                            
+                            document.getElementById('intruder-image').src = data.image_url;
+                            document.getElementById('intruder-time').textContent = data.timestamp;
+                            document.getElementById('intruder-location').textContent = data.location;
+                            
+                            // Add to history
+                            addAlertToHistory({
+                                type: '🚨 Intruder Alert',
+                                time: data.timestamp,
+                                message: data.message
+                            });
+                            
+                            // Show notification
+                            showNotification('🚨 Intruder Alert!', data.message);
+                        }
+                    });
+            }
+
+            // Network status monitoring
+            function updateNetworkStatus() {
+                fetch('/network-status')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('wifi-ssid').textContent = data.ssid;
+                        document.getElementById('ip-address').textContent = data.ip;
+                        document.getElementById('signal-strength').textContent = data.signal;
+                    });
+            }
+
+            // Enhanced recording history with actions
+            function updateRecordingHistory() {
+                fetch('/recording-history')
+                    .then(response => response.json())
+                    .then(data => {
+                        const history = document.getElementById('recording-history');
+                        history.innerHTML = '';
+                        data.forEach(recording => {
+                            const item = document.createElement('div');
+                            item.className = 'recording-item';
+                            const filename = `${recording.folder}/${recording.filename}`;
+                            item.innerHTML = `
+                                <div class="d-flex justify-content-between">
+                                    <strong>${recording.folder}</strong>
+                                    <small>${recording.created}</small>
+                                </div>
+                                <div>${recording.filename} (${(recording.size / 1024 / 1024).toFixed(2)} MB)</div>
+                                <div class="recording-actions">
+                                    <button class="btn btn-sm btn-primary" onclick="downloadRecording('${filename}')">
+                                        <i class="bi bi-download"></i> Download
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteRecording('${filename}')">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </div>
+                            `;
+                            history.appendChild(item);
+                        });
+                    });
+            }
+
+            // Download recording
+            function downloadRecording(filename) {
+                window.location.href = `/download-recording/${filename}`;
+            }
+
+            // Delete recording
+            function deleteRecording(filename) {
+                if (confirm('Are you sure you want to delete this recording?')) {
+                    fetch(`/delete-recording/${filename}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateRecordingHistory();
+                            showNotification('🗑️ Recording Deleted', 'Recording has been deleted successfully');
+                        } else {
+                            showNotification('❌ Error', data.error || 'Failed to delete recording');
+                        }
+                    });
+                }
+            }
+
+            // Update trained faces list
+            function updateTrainedFaces() {
+                fetch('/trained-faces')
+                    .then(response => response.json())
+                    .then(data => {
+                        const container = document.getElementById('trained-faces');
+                        container.innerHTML = '';
+                        Object.entries(data).forEach(([name, count]) => {
+                            const item = document.createElement('div');
+                            item.className = 'face-item';
+                            item.innerHTML = `
+                                <div>
+                                    <strong>${name}</strong>
+                                    <span class="face-count">${count} faces</span>
+                                </div>
+                                <i class="bi bi-trash delete-btn" onclick="deleteFace('${name}')"></i>
+                            `;
+                            container.appendChild(item);
+                        });
+                    });
+            }
+
+            // Delete trained face
+            function deleteFace(name) {
+                if (confirm(`Are you sure you want to delete all trained faces for ${name}?`)) {
+                    fetch(`/delete-face/${name}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateTrainedFaces();
+                            showNotification('🗑️ Face Deleted', `All trained faces for ${name} have been deleted`);
+                        } else {
+                            showNotification('❌ Error', data.error || 'Failed to delete face');
+                        }
+                    });
+                }
+            }
+
+            // Face training
+            document.getElementById('face-training-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData();
+                formData.append('name', document.getElementById('name').value);
+                formData.append('image', document.getElementById('face-image').files[0]);
+
+                fetch('/train-face', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const result = document.getElementById('training-result');
+                    if (data.error) {
+                        result.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    } else {
+                        result.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                    }
+                });
+            });
+
+            // System logs
+            function updateSystemLogs() {
+                fetch('/system-logs')
+                    .then(response => response.json())
+                    .then(data => {
+                        const logs = document.getElementById('system-logs');
+                        logs.innerHTML = '';
+                        data.logs.forEach(log => {
+                            const entry = document.createElement('div');
+                            entry.className = 'log-entry';
+                            entry.textContent = log;
+                            logs.appendChild(entry);
+                        });
+                        logs.scrollTop = logs.scrollHeight;
+                    });
+            }
+
+            // Initialize and start periodic updates
+            initializeStatus();
+            checkIntruderAlerts();
+            updateNetworkStatus();
+            updateRecordingHistory();
+            updateTrainedFaces();
+            updateSystemLogs();
+            setInterval(checkIntruderAlerts, 5000);
+            setInterval(updateNetworkStatus, 30000);
+            setInterval(updateRecordingHistory, 60000);
+            setInterval(updateTrainedFaces, 30000);
+            setInterval(updateSystemLogs, 10000);
+        </script>
+    </body>
+    </html>
+    """
+
+@app.route('/status')
+def get_status():
+    return jsonify({
+        'motion_sensor_enabled': motion_sensor_enabled,
+        'buzzer_enabled': buzzer_enabled,
+        'led_enabled': led_enabled,
+        'servo_enabled': servo_enabled
+    })
+
+@app.route('/intruder-alert')
+def get_intruder_alert():
+    global last_intruder_alert
+    if last_intruder_alert:
+        return jsonify(last_intruder_alert)
+    return jsonify({'has_alert': False})
+
+# Add to global variables at the top
+last_intruder_alert = None
+
+@app.route('/intruder-image/<filename>')
+def serve_intruder_image(filename):
+    return send_file(f'/tmp/{filename}', mimetype='image/jpeg')
+
+@app.route('/system-status')
+def get_system_status():
+    try:
+        import psutil
+        return jsonify({
+            'cpu': round(psutil.cpu_percent()),
+            'memory': round(psutil.virtual_memory().percent),
+            'disk': round(psutil.disk_usage('/').percent)
+        })
+    except Exception as e:
+        return jsonify({
+            'cpu': 0,
+            'memory': 0,
+            'disk': 0,
+            'error': str(e)
+        })
+
+@app.route('/toggle-recording', methods=['POST'])
+def toggle_recording():
+    global recording
+    if recording:
+        return stop_recording()
+    else:
+        return start_recording()
+
+@app.route('/network-status')
+def get_network_status():
+    try:
+        # Get WiFi SSID
+        ssid = subprocess.check_output(['iwconfig', 'wlan0']).decode('utf-8')
+        ssid = ssid.split('ESSID:"')[1].split('"')[0] if 'ESSID:"' in ssid else 'Not Connected'
+        
+        # Get IP address
+        ip = subprocess.check_output(['hostname', '-I']).decode('utf-8').split()[0]
+        
+        # Get signal strength
+        signal = subprocess.check_output(['iwconfig', 'wlan0']).decode('utf-8')
+        signal = signal.split('Signal level=')[1].split()[0] if 'Signal level=' in signal else 'Unknown'
+        
+        return jsonify({
+            'ssid': ssid,
+            'ip': ip,
+            'signal': signal,
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+@app.route('/recording-history')
+def get_recording_history():
+    try:
+        recordings = []
+        for folder in os.listdir(VIDEO_DIR):
+            folder_path = os.path.join(VIDEO_DIR, folder)
+            if os.path.isdir(folder_path):
+                for file in os.listdir(folder_path):
+                    if file.endswith('.mp4'):
+                        file_path = os.path.join(folder_path, file)
+                        recordings.append({
+                            'folder': folder,
+                            'filename': file,
+                            'size': os.path.getsize(file_path),
+                            'created': datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+                        })
+        return jsonify(sorted(recordings, key=lambda x: x['created'], reverse=True))
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/system-logs')
+def get_system_logs():
+    try:
+        logs = []
+        # Get last 100 lines of system log
+        with open('/var/log/syslog', 'r') as f:
+            logs = f.readlines()[-100:]
+        return jsonify({'logs': logs})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/train-face', methods=['POST'])
+def train_face():
+    try:
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image provided'}), 400
+        
+        image = request.files['image']
+        name = request.form.get('name', 'Unknown')
+        
+        # Save image temporarily
+        temp_path = f'/tmp/train_{int(time.time())}.jpg'
+        image.save(temp_path)
+        
+        # Process image with face_recognition
+        image = face_recognition.load_image_file(temp_path)
+        encodings = face_recognition.face_encodings(image)
+        
+        if not encodings:
+            return jsonify({'error': 'No face detected in image'}), 400
+        
+        # Update encodings.pickle
+        data = pickle.loads(open(encodingsP, "rb").read())
+        data["encodings"].append(encodings[0])
+        data["names"].append(name)
+        
+        with open(encodingsP, "wb") as f:
+            f.write(pickle.dumps(data))
+        
+        os.remove(temp_path)
+        return jsonify({'success': True, 'message': f'Face trained for {name}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/download-recording/<path:filename>')
+def download_recording(filename):
+    try:
+        folder, file = filename.split('/')
+        file_path = os.path.join(VIDEO_DIR, folder, file)
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
+
+@app.route('/delete-recording/<path:filename>', methods=['DELETE'])
+def delete_recording(filename):
+    try:
+        folder, file = filename.split('/')
+        file_path = os.path.join(VIDEO_DIR, folder, file)
+        os.remove(file_path)
+        # If folder is empty, remove it too
+        folder_path = os.path.join(VIDEO_DIR, folder)
+        if not os.listdir(folder_path):
+            os.rmdir(folder_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/trained-faces')
+def get_trained_faces():
+    try:
+        data = pickle.loads(open(encodingsP, "rb").read())
+        # Count occurrences of each name
+        face_counts = {}
+        for name in data["names"]:
+            face_counts[name] = face_counts.get(name, 0) + 1
+        return jsonify(face_counts)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/delete-face/<name>', methods=['DELETE'])
+def delete_face(name):
+    try:
+        data = pickle.loads(open(encodingsP, "rb").read())
+        # Find all indices for this name
+        indices = [i for i, n in enumerate(data["names"]) if n == name]
+        # Remove entries in reverse order to avoid index issues
+        for i in sorted(indices, reverse=True):
+            del data["encodings"][i]
+            del data["names"][i]
+        # Save updated data
+        with open(encodingsP, "wb") as f:
+            f.write(pickle.dumps(data))
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     try:
