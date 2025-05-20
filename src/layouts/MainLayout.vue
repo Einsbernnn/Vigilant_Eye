@@ -146,6 +146,20 @@
             class="q-mt-md"
             prepend="Camera Location"
           />
+          <q-select
+            v-model="settings.autoDeletion"
+            label="Auto Deletion of Footage"
+            filled
+            class="q-mt-md"
+            :options="[
+              { label: 'Every 1 week', value: '1w' },
+              { label: 'Every 15th month', value: '15m' },
+              { label: 'Every month', value: '1m' },
+              { label: 'Every year', value: '1y' },
+            ]"
+            emit-value
+            map-options
+          />
           <q-toggle
             v-model="settings.enableCameraLight"
             label="Turn On Camera Light"
@@ -228,6 +242,7 @@ const settings = ref({
   enableBuzzerSound: false,
   enableMotionSensor: false,
   doNotDisturb: false,
+  autoDeletion: '1w', // default: every 1 week
 });
 
 const toggleDarkMode = () => {
@@ -262,6 +277,9 @@ const saveSettings = () => {
   } else {
     settings.value.uploadApiUrl = settingsStore.uploadApiUrl;
   }
+
+  // Optionally, persist autoDeletion to store here if needed
+  // settingsStore.updateAutoDeletion(settings.value.autoDeletion);
 
   showSettingsDialog.value = false;
 };
