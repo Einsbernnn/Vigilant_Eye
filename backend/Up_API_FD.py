@@ -1,3 +1,6 @@
+#Upload_API_FD_May21.py
+#dev by EinsbernSystems
+
 from flask import Flask, send_from_directory, jsonify, request, send_file, Response
 from flask_cors import CORS
 import os
@@ -8,11 +11,13 @@ import mimetypes
 import re
 import datetime
 
+
+
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 KNOWN_FACES_DIR = '/home/einsbern/facial_recognition/dataset'
-VIDEO_DIR = '/home/einsbern/facial_recognition/footage'
+VIDEO_DIR = '/media/einsbern/76E8-CACF/footage_fd'
 VENV_PYTHON = '/home/einsbern/camenv/bin/python'
 TRAIN_SCRIPT = '/home/einsbern/facial_recognition/train_model.py'
 TRAIN_CWD = '/home/einsbern/facial_recognition'
@@ -334,3 +339,5 @@ def get_logs_alias():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
