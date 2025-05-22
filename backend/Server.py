@@ -149,6 +149,8 @@ def pir_monitor_thread():
                 # Log motion event
                 log_detection_event('motion', now - (recording_start_time or now), {})
                 flicker_led()
+                # --- Double short beep when motion is detected ---
+                threading.Thread(target=beep, args=(2, 0.15)).start()
         else:
             pir_triggered_time = 0
             pir_notified = False
@@ -550,7 +552,7 @@ def recognize_and_draw(frame):
                 except Exception:
                     camera_location = None
                 location_str = f" at your {camera_location}" if camera_location else ""
-                message = f"Ã°ÂÂÂ¨ Intruder detected{location_str} at {timestamp}"
+                message = f"ð¨ Intruder detected{location_str} at {timestamp}"
                 snap_filename = f"intruder_{int(now_time)}.jpg"
                 snap_filepath = os.path.join('/tmp', snap_filename)
                 cv2.imwrite(snap_filepath, frame)
@@ -583,7 +585,34 @@ def recognize_and_draw(frame):
                         except Exception:
                             camera_location = None
                         location_str = f" at your {camera_location}" if camera_location else ""
-                        message = f"Ã°ÂÂÂ {name} detected{location_str} at {timestamp}"
+                        message = f"ð {name} detected{location_str} at {timestamp}"
+
+                        # --- Send photo to Telegram for known person ---
+                        snap_filename = f"known_{name}_{int(current_time)}.jpg"
+                        snap_filepath = os.path.join('/tmp', snap_filename)
+                        cv2.imwrite(snap_filepath, frame)
+
+                        # --- Timeline: get last 5 log events if available ---
+                        timeline = ""
+                        if recording_folder and recording_filename:
+                            log_path = get_log_txt_path(recording_folder, recording_filename)
+                            if os.path.exists(log_path):
+                                try:
+                                    with open(log_path, 'r') as f:
+                                        lines = f.readlines()[-5:]  # last 5 events
+                                    timeline = "\n".join([line.strip() for line in lines])
+                                except Exception:
+                                    timeline = ""
+                        if timeline:
+                            message += f"\n\nRecent Timeline:\n{timeline}"
+
+                        try:
+                            with open(snap_filepath, 'rb') as f:
+                                bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=f, caption=message)
+                        except Exception as e:
+                            print(f"[ERROR] Failed to send known photo to Telegram: {e}")
+                        # --- End photo send ---
+
                         send_telegram_notification(message)
                         last_notification_time[name] = current_time
                         log_detection_event('known', now - (recording_start_time or now), {'name': name})
@@ -648,48 +677,48 @@ def handle_telegram_commands():
     def enable_motionsense_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-motion-sensor', json={'enabled': True})
-        update.message.reply_text("Ã¢ÂÂ Motion sensor enabled")
+        update.message.reply_text("â Motion sensor enabled")
 
     def disable_motionsense_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-motion-sensor', json={'enabled': False})
-        update.message.reply_text("Ã¢ÂÂ Motion sensor disabled")
+        update.message.reply_text("â Motion sensor disabled")
 
     def enable_sounds_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-buzzer', json={'enabled': True})
-        update.message.reply_text("Ã°ÂÂÂ Sounds enabled")
+        update.message.reply_text("ð Sounds enabled")
 
     def disable_sounds_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-buzzer', json={'enabled': False})
-        update.message.reply_text("Ã°ÂÂÂ Sounds disabled")
+        update.message.reply_text("ð Sounds disabled")
 
     def enable_servo_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-servo', json={'enabled': True})
-        update.message.reply_text("Ã°ÂÂÂ Servo enabled")
+        update.message.reply_text("ð ï¸ Servo enabled")
 
     def disable_servo_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-servo', json={'enabled': False})
-        update.message.reply_text("Ã¢ÂÂ¹ Servo disabled")
+        update.message.reply_text("â¹ Servo disabled")
 
     def enable_led_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-led', json={'enabled': True})
-        update.message.reply_text("Ã°ÂÂÂ¡ LED enabled")
+        update.message.reply_text("ð¡ LED enabled")
 
     def disable_led_cmd(update, context):
         with app.test_client() as client:
             client.post('/set-led', json={'enabled': False})
-        update.message.reply_text("Ã°ÂÂÂ LED disabled")
+        update.message.reply_text("ð LED disabled")
 
     def set_servo_angle_cmd(update, context):
         try:
             angle = int(context.args[0])
             if not (0 <= angle <= 180):
-                update.message.reply_text("Ã¢ÂÂ Angle must be between 0 and 180.")
+                update.message.reply_text("â Angle must be between 0 and 180.")
                 return
         except (IndexError, ValueError):
             update.message.reply_text("Usage: /servo_angle <0-180>")
@@ -697,9 +726,9 @@ def handle_telegram_commands():
         with app.test_client() as client:
             resp = client.post('/set-servo-angle', json={'angle': angle})
             if resp.status_code == 200:
-                update.message.reply_text(f"Ã°ÂÂÂ Servo moved to {angle}ÃÂ°")
+                update.message.reply_text(f"ð ï¸ Servo moved to {angle}Â°")
             else:
-                update.message.reply_text("Ã¢ÂÂ Failed to move servo.")
+                update.message.reply_text("â Failed to move servo.")
 
     def snap_cmd(update, context):
         with app.test_client() as client:
@@ -711,23 +740,23 @@ def handle_telegram_commands():
                     with open(filepath, 'rb') as f:
                         update.message.reply_photo(f)
                 else:
-                    update.message.reply_text("Ã¢ÂÂ Failed to take snapshot.")
+                    update.message.reply_text("â Failed to take snapshot.")
             else:
-                update.message.reply_text("Ã¢ÂÂ Failed to take snapshot.")
+                update.message.reply_text("â Failed to take snapshot.")
 
     def status_cmd(update, context):
         status_msg = f"""
-Ã°ÂÂÂ System Status:
-- Motion Sensor: {'Ã¢ÂÂ' if motion_sensor_enabled else 'Ã¢ÂÂ'}
-- Sounds: {'Ã°ÂÂÂ' if buzzer_enabled else 'Ã°ÂÂÂ'}
-- Servo: {'Ã°ÂÂÂ' if servo_enabled else 'Ã¢ÂÂ¹'}
-- LED: {'Ã°ÂÂÂ¡' if led_enabled else 'Ã°ÂÂÂ'}
+ð System Status:
+- Motion Sensor: {'â' if motion_sensor_enabled else 'â'}
+- Sounds: {'ð' if buzzer_enabled else 'ð'}
+- Servo: {'ð ï¸' if servo_enabled else 'â¹'}
+- LED: {'ð¡' if led_enabled else 'ð'}
 """
         update.message.reply_text(status_msg)
 
     def help_cmd(update, context):
         help_msg = """
-Ã°ÂÂ¤Â Available Commands:
+ð¤ Available Commands:
 /enable_motion - Enable motion sensor
 /disable_motion - Disable motion sensor
 /enable_sound - Enable sounds
@@ -753,7 +782,7 @@ def handle_telegram_commands():
                 servo.ChangeDutyCycle(2.5 + (angle / 180.0) * 10)
                 time.sleep(0.05)
             servo.ChangeDutyCycle(0)
-        update.message.reply_text("Ã°ÂÂÂ¨ Patrol started: Servo will sweep left to right.")
+        update.message.reply_text("ð¶ Patrol started: Servo will sweep left to right.")
         def repeat_patrol():
             while True:
                 patrol_motion()

@@ -107,7 +107,7 @@ const isLoading = ref(false);
 const userStore = useUserStore();
 const router = useRouter();
 
-const handleLogin = async () => {
+const handleLogin: () => Promise<void> = async () => {
   isLoading.value = true;
   errorMessage.value = '';
 
