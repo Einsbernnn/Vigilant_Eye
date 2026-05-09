@@ -1,9 +1,9 @@
 {
   "name": "rpi-streaming",
   "version": "0.0.1",
-  "description": "A Quasar Project",
-  "productName": "Quasar App",
-  "author": "john lloyd <johnlloyd@apollo.com.ph>",
+  "description": "A vigilant Eye turns a Raspberry Pi camera into a private, on-prem security system. It streams live video, recognizes faces you've trained it on, records footage to local storage, and pings you on Telegram the moment something it doesn't recognize walks into view.",
+  "productName": "Vigilant Eye",
+  "author": "Einsbern <dendiass18@gmail.com>",
   "private": true,
   "scripts": {
     "lint": "eslint --ext .js,.ts,.vue ./",
