@@ -1,5 +1,19 @@
 <template>
   <q-page class="q-px-xl q-pt-xl">
+    <q-banner
+      v-if="settingsStore.demoMode"
+      class="demo-banner-strip q-mb-md"
+      rounded
+      dense
+    >
+      <template v-slot:avatar>
+        <q-icon name="science" color="white" />
+      </template>
+      <span class="text-weight-medium">Demo data:</span>
+      these folders, clips, thumbnails, and detection logs are placeholder
+      content for showcasing the UI — no real footage is stored on this
+      deployment.
+    </q-banner>
     <div class="q-mb-md text-h6 text-center">
       {{ currentDateTime }}
     </div>
@@ -34,6 +48,14 @@
             class="image-card folder-card cursor-pointer"
             @click="selectFolder(folder)"
           >
+            <q-badge
+              v-if="settingsStore.demoMode"
+              color="purple"
+              text-color="white"
+              class="demo-pill"
+            >
+              Demo
+            </q-badge>
             <div class="column items-center q-pa-md">
               <q-icon name="folder" color="accent" size="64px" />
               <div class="text-center text-weight-bold q-mt-sm">
@@ -134,6 +156,14 @@
                     : 'Loading...'
                 }}
               </q-badge>
+              <q-badge
+                v-if="settingsStore.demoMode"
+                color="purple"
+                text-color="white"
+                class="demo-pill demo-pill--video"
+              >
+                Demo
+              </q-badge>
             </div>
 
             <q-card-section class="card-content">
@@ -205,9 +235,19 @@
     <q-dialog v-model="videoDialog" persistent>
       <q-card style="display: flex; flex-direction: row; min-width: 900px">
         <q-card-section style="flex: 2 1 0; min-width: 0">
-          <div class="text-h6">Playing Video</div>
+          <div class="text-h6 row items-center q-gutter-sm">
+            <span>Playing Video</span>
+            <q-badge
+              v-if="settingsStore.demoMode"
+              color="purple"
+              text-color="white"
+            >
+              Demo clip
+            </q-badge>
+          </div>
           <video
             v-if="videoToPlay"
+            ref="playbackVideoEl"
             :src="getVideoUrl(videoToPlay)"
             controls
             autoplay
@@ -276,6 +316,31 @@
 .gallery-wrapper {
   max-width: 1600px;
   margin: 0 auto;
+}
+
+.demo-banner-strip {
+  background: linear-gradient(135deg, #4c065c, #6a1b9a);
+  color: #f3eafa;
+  font-size: 0.85rem;
+}
+
+.folder-card {
+  position: relative;
+}
+
+.demo-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  letter-spacing: 0.05em;
+}
+
+.demo-pill--video {
+  top: 8px;
+  right: 8px;
+  bottom: auto;
+  left: auto;
 }
 
 .header-row {
@@ -367,6 +432,11 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
+import {
+  demoVideoFolders,
+  findDemoVideoFolder,
+  buildDemoLogs,
+} from 'src/demo/demoData';
 
 interface Video {
   id: string;
@@ -408,6 +478,7 @@ const folderToDelete = ref('');
 const videoDialog = ref(false);
 const videoToPlay = ref<Video | null>(null);
 const videoError = ref(false);
+const playbackVideoEl = ref<HTMLVideoElement | null>(null);
 
 const folderSearchQuery = ref('');
 const filteredFolders = computed(() => {
@@ -539,6 +610,15 @@ const uploadVideos = async () => {
     });
     return;
   }
+  if (settingsStore.demoMode) {
+    $q.notify({
+      type: 'info',
+      message: 'Demo mode: upload is disabled.',
+      icon: 'science',
+    });
+    videoFiles.value = [];
+    return;
+  }
   isUploading.value = true;
   try {
     const formData = new FormData();
@@ -650,6 +730,10 @@ function generateVideoThumbnails() {
 }
 
 const fetchFolders = async () => {
+  if (settingsStore.demoMode) {
+    folders.value = demoVideoFolders.map((f) => f.name);
+    return;
+  }
   try {
     const res = await fetch(`${API_BASE.value}/api/video-folders`);
     if (!res.ok) throw new Error('Failed to fetch folders');
@@ -667,6 +751,19 @@ const fetchFolders = async () => {
 
 const fetchVideosInFolder = async () => {
   if (!selectedFolder.value) return;
+  if (settingsStore.demoMode) {
+    const demo = findDemoVideoFolder(selectedFolder.value);
+    videos.value = (demo?.videos ?? []).map((v, idx) => ({
+      id: `${selectedFolder.value}-${idx}`,
+      title: v.filename,
+      timestamp: parseDateFromVideoFilename(v.filename) || new Date(),
+      duration: 0,
+      thumbnail: v.thumbnail,
+      url: v.url,
+    }));
+    fetchVideoDurations();
+    return;
+  }
   try {
     const res = await fetch(
       `${API_BASE.value}/api/folder-videos?folder=${encodeURIComponent(
@@ -718,6 +815,11 @@ function showRenameDialog(folder: string) {
 }
 
 async function renameFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: rename is disabled.' });
+    renameDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/rename-folder`, {
       method: 'POST',
@@ -742,6 +844,11 @@ function showDeleteDialog(folder: string) {
 }
 
 async function deleteFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: delete is disabled.' });
+    deleteDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/delete-folder`, {
       method: 'POST',
@@ -770,26 +877,35 @@ const logs = ref<LogEntry[]>([]);
 
 watch(videoToPlay, async (newVideo) => {
   logs.value = [];
-  if (newVideo && selectedFolder.value) {
-    try {
-      const res = await fetch(
-        `${API_BASE.value}/get-logs?folder=${encodeURIComponent(
-          selectedFolder.value
-        )}&video=${encodeURIComponent(newVideo.title)}`
-      );
-      if (res.ok) {
-        logs.value = await res.json();
-      }
-    } catch (e) {
-      logs.value = [];
+  if (!newVideo || !selectedFolder.value) return;
+  if (settingsStore.demoMode) {
+    logs.value = buildDemoLogs(newVideo.title);
+    return;
+  }
+  try {
+    const res = await fetch(
+      `${API_BASE.value}/get-logs?folder=${encodeURIComponent(
+        selectedFolder.value
+      )}&video=${encodeURIComponent(newVideo.title)}`
+    );
+    if (res.ok) {
+      logs.value = await res.json();
     }
+  } catch (e) {
+    logs.value = [];
   }
 });
 
 function seekToTimestamp(ts: number) {
-  const videoEl = document.querySelector('video');
-  if (videoEl) {
-    videoEl.currentTime = ts;
+  const videoEl = playbackVideoEl.value;
+  if (!videoEl) return;
+  videoEl.currentTime = ts;
+  // Make the seek feel like an action, not a preference: jump and keep playing.
+  const playPromise = videoEl.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {
+      // Autoplay restrictions in some browsers — user can press play.
+    });
   }
 }
 
