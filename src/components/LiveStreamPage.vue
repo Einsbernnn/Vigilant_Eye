@@ -3,9 +3,31 @@
     <div class="stream-wrapper">
       <div class="video-container">
         <div class="panel-label">Live Stream</div>
-        <!-- Use <img> for MJPEG streams -->
+        <!-- Demo mode: YouTube iframe, video file, or static image. Real mode: <img> for MJPEG. -->
+        <iframe
+          v-if="streamingActive && demoIsYoutube"
+          class="video-element"
+          :class="{ 'video-glow': streamingActive }"
+          :src="youtubeEmbedUrl"
+          frameborder="0"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+        />
+        <video
+          v-else-if="streamingActive && demoIsVideo"
+          ref="demoVideoEl"
+          class="video-element"
+          :class="{ 'video-glow': streamingActive }"
+          :src="videoSrc"
+          :muted="true"
+          loop
+          autoplay
+          playsinline
+          @loadedmetadata="onDemoVideoReady"
+          @error="onStreamError"
+        />
         <img
-          v-if="streamingActive"
+          v-else-if="streamingActive"
           ref="videoPlayer"
           class="video-element"
           :class="{ 'video-glow': streamingActive }"
@@ -15,6 +37,11 @@
         />
         <div v-else class="video-element video-placeholder">
           <span class="placeholder-text">Stream is paused</span>
+        </div>
+
+        <div v-if="settingsStore.demoMode" class="demo-banner">
+          <q-icon name="science" size="16px" class="q-mr-xs" />
+          Demo mode &middot; placeholder feed
         </div>
 
         <div class="overlay-controls">
@@ -88,21 +115,89 @@ import { useSettingsStore } from 'stores/settingsStore';
 import { useNotificationStore } from 'stores/notificationStore';
 import { onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
+import {
+  buildRandomDemoNotification,
+  buildDemoNotificationSeed,
+} from 'src/demo/demoData';
 
 const $q = useQuasar();
-const streamingActive = ref(false);
-const recordingActive = ref(false);
-const recordingFolder = ref('');
 const settingsStore = useSettingsStore();
 const notificationStore = useNotificationStore();
-const videoSrc = computed(() =>
-  streamingActive.value ? `${settingsStore.liveStreamUrl}/video` : ''
-);
-const connectionStatus = reactive({
-  color: 'green',
-  icon: 'check_circle',
-  text: 'Connected',
+// In demo mode, start streaming immediately so the placeholder video plays on
+// page load. In real mode, the user clicks ▶ to connect to the Pi.
+const streamingActive = ref(settingsStore.demoMode);
+const recordingActive = ref(false);
+const recordingFolder = ref('');
+const demoVideoEl = ref<HTMLVideoElement | null>(null);
+
+const onDemoVideoReady = () => {
+  const el = demoVideoEl.value;
+  if (!el) return;
+  // Belt-and-braces: explicitly set muted as a property and kick off play().
+  // Chrome's autoplay policy checks the property, not just the attribute.
+  el.muted = true;
+  const playPromise = el.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {
+      // Autoplay was blocked; the user can press play manually.
+    });
+  }
+};
+
+const videoSrc = computed(() => {
+  if (!streamingActive.value) return '';
+  return settingsStore.demoMode
+    ? settingsStore.demoLiveStreamUrl
+    : `${settingsStore.liveStreamUrl}/video`;
 });
+
+const youtubeIdFromUrl = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+};
+
+const demoIsYoutube = computed(() => {
+  if (!settingsStore.demoMode) return false;
+  return youtubeIdFromUrl(settingsStore.demoLiveStreamUrl) !== null;
+});
+
+const youtubeEmbedUrl = computed(() => {
+  const id = youtubeIdFromUrl(settingsStore.demoLiveStreamUrl);
+  if (!id) return '';
+  // autoplay + mute (required by browsers for autoplay), no controls/branding,
+  // loop the same id as a fallback in case the live stream ends.
+  const params = new URLSearchParams({
+    autoplay: '1',
+    mute: '1',
+    controls: '0',
+    playsinline: '1',
+    modestbranding: '1',
+    rel: '0',
+    loop: '1',
+    playlist: id,
+  });
+  return `https://www.youtube.com/embed/${id}?${params.toString()}`;
+});
+
+const demoIsVideo = computed(() => {
+  if (!settingsStore.demoMode) return false;
+  if (demoIsYoutube.value) return false;
+  return /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(
+    settingsStore.demoLiveStreamUrl
+  );
+});
+
+const connectionStatus = reactive(
+  settingsStore.demoMode
+    ? { color: 'purple', icon: 'science', text: 'Demo' }
+    : { color: 'green', icon: 'check_circle', text: 'Connected' }
+);
 
 const notifications = computed(() => notificationStore.notifications);
 
@@ -156,6 +251,10 @@ const toggleStream = () => {
     connectionStatus.color = 'grey';
     connectionStatus.icon = 'pause_circle';
     connectionStatus.text = 'Paused';
+  } else if (settingsStore.demoMode) {
+    connectionStatus.color = 'purple';
+    connectionStatus.icon = 'science';
+    connectionStatus.text = 'Demo';
   } else {
     connectionStatus.color = 'green';
     connectionStatus.icon = 'check_circle';
@@ -193,6 +292,15 @@ const getFrontendTimestamp = () => {
 const toggleRecording = async () => {
   if (!streamingActive.value) {
     addNotification('Cannot start recording. Stream is not active.');
+    return;
+  }
+  if (settingsStore.demoMode) {
+    recordingActive.value = !recordingActive.value;
+    addNotification(
+      recordingActive.value
+        ? 'Demo recording started (no file is actually saved).'
+        : 'Demo recording stopped.'
+    );
     return;
   }
   if (!recordingActive.value) {
@@ -244,6 +352,10 @@ const toggleRecording = async () => {
 };
 
 const onStreamError = () => {
+  // In demo mode the source is a static asset; transient load hiccups (slow
+  // network, momentary CDN errors) shouldn't kill the stream — let the browser
+  // retry on its own.
+  if (settingsStore.demoMode) return;
   connectionStatus.color = 'red';
   connectionStatus.icon = 'error';
   connectionStatus.text = 'Stream Error';
@@ -262,11 +374,44 @@ const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
   }
 };
 
+let pirPollTimer: ReturnType<typeof setInterval> | null = null;
+let demoNotifTimer: ReturnType<typeof setTimeout> | null = null;
+
+const fireDemoNotification = () => {
+  const n = buildRandomDemoNotification();
+  addNotification(n.message);
+  $q.notify({
+    type: n.level,
+    message: n.message,
+    timeout: 4000,
+    position: 'top-right',
+  });
+};
+
+const scheduleNextDemoNotification = () => {
+  // Random 12–22s gap so the feed feels organic instead of metronomic.
+  const delayMs = 12_000 + Math.floor(Math.random() * 10_000);
+  demoNotifTimer = setTimeout(() => {
+    fireDemoNotification();
+    scheduleNextDemoNotification();
+  }, delayMs);
+};
+
 onMounted(() => {
   window.addEventListener('beforeunload', beforeUnloadHandler);
 
+  if (settingsStore.demoMode) {
+    // Seed the panel so it isn't empty on first paint, then start the
+    // randomized trigger loop. Skips the real Pi poller entirely.
+    if (notificationStore.notifications.length === 0) {
+      buildDemoNotificationSeed().forEach((n) => addNotification(n.message));
+    }
+    scheduleNextDemoNotification();
+    return;
+  }
+
   // Poll for PIR notifications every 2 seconds
-  setInterval(async () => {
+  pirPollTimer = setInterval(async () => {
     try {
       const res = await fetch(
         `${settingsStore.liveStreamUrl}/pir-notification`
@@ -290,6 +435,8 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
+  if (pirPollTimer) clearInterval(pirPollTimer);
+  if (demoNotifTimer) clearTimeout(demoNotifTimer);
 });
 
 // Vue router navigation guard
@@ -335,6 +482,8 @@ onBeforeRouteLeave((to, from, next) => {
   width: 100%;
   height: 70vh;
   object-fit: cover;
+  border: 0;
+  display: block;
 }
 
 .video-placeholder {
@@ -349,6 +498,24 @@ onBeforeRouteLeave((to, from, next) => {
 
 .video-glow {
   box-shadow: 0 0 30px rgba(66, 133, 244, 0.2);
+}
+
+.demo-banner {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(76, 6, 92, 0.7);
+  color: #f3eafa;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+  z-index: 2;
 }
 
 .overlay-controls {
