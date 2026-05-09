@@ -3,7 +3,17 @@ import { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/login',
+    component: () => import('layouts/AuthLayout.vue'),
+    children: [
+      {
+        path: '',
+        component: () => import('pages/LandingPage.vue'),
+      },
+      {
+        path: 'login',
+        component: () => import('pages/LoginPage.vue'),
+      },
+    ],
   },
   {
     path: '/',
@@ -24,16 +34,6 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'snapshot-camera',
         component: () => import('components/SnapshotCamera.vue'),
-      },
-    ],
-  },
-  {
-    path: '/',
-    component: () => import('layouts/AuthLayout.vue'),
-    children: [
-      {
-        path: 'login',
-        component: () => import('pages/LoginPage.vue'),
       },
     ],
   },
