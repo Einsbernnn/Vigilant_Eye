@@ -1,5 +1,20 @@
 <template>
   <q-page class="q-pa-lg">
+    <q-banner
+      v-if="settingsStore.demoMode"
+      class="demo-banner-strip q-mb-md"
+      rounded
+      dense
+    >
+      <template v-slot:avatar>
+        <q-icon name="science" color="white" />
+      </template>
+      <span class="text-weight-medium">Demo data:</span>
+      base folders and photos are placeholder content from randomuser.me. You
+      can create folders, upload images, and run the (simulated) model
+      training — changes live in your browser tab and reset on reload.
+      Renames and deletes are disabled.
+    </q-banner>
     <div class="column items-center q-gutter-lg">
       <q-card class="upload-card q-pa-lg shadow-5">
         <q-form @submit.prevent="handleUpload" class="column q-gutter-y-md">
@@ -199,6 +214,14 @@
                 class="image-card folder-card cursor-pointer"
                 @click="openFolder(folder)"
               >
+                <q-badge
+                  v-if="settingsStore.demoMode"
+                  color="purple"
+                  text-color="white"
+                  class="demo-pill"
+                >
+                  Demo
+                </q-badge>
                 <div class="column items-center q-pa-md">
                   <q-icon name="folder" color="accent" size="64px" />
                   <div class="text-center text-weight-bold q-mt-sm">
@@ -271,9 +294,17 @@
               :key="index"
               class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
             >
-              <q-card class="image-card">
+              <q-card class="image-card dataset-card">
+                <q-badge
+                  v-if="settingsStore.demoMode"
+                  color="purple"
+                  text-color="white"
+                  class="demo-pill"
+                >
+                  Demo
+                </q-badge>
                 <q-img
-                  :src="`${API_BASE}/dataset/${selectedFolder}/${image}`"
+                  :src="imageSrc(image)"
                   :ratio="1"
                   class="image-item"
                   spinner-color="accent"
@@ -361,6 +392,16 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
+import {
+  demoImageFolders,
+  findDemoImageFolder,
+} from 'src/demo/demoData';
+import {
+  demoState,
+  addDemoFolder,
+  addDemoImages,
+  getDemoExtraImages,
+} from 'src/demo/demoState';
 
 const $q = useQuasar();
 const settingsStore = useSettingsStore();
@@ -421,6 +462,50 @@ const handleUpload = async () => {
     return;
   }
 
+  if (settingsStore.demoMode) {
+    isUploading.value = true;
+    // Simulate a brief upload — feels real, not instant.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const folder = selectedFolder.value;
+    // Existing image count for this folder so new filenames continue the
+    // "alice_NNN.jpg" sequence (or just the folder slug for custom folders).
+    const slug = folder.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const existingCount =
+      (findDemoImageFolder(folder)?.images.length ?? 0) +
+      getDemoExtraImages(folder).length;
+    const entries = selectedFiles.value.map((file, i) => {
+      const ext = file.name.match(/\.(jpe?g|png|webp)$/i)?.[0] ?? '.jpg';
+      // Reuse the preview blob URL — no need to allocate a second one per
+      // file. These intentionally outlive this scope (no revoke) because
+      // they are the persistent <q-img> src for the demo folder.
+      return {
+        filename: `${slug}_${String(existingCount + i + 1).padStart(3, '0')}${ext}`,
+        url: previewImages.value[i] ?? URL.createObjectURL(file),
+      };
+    });
+    addDemoImages(folder, entries);
+    uploadSuccess.value = true;
+    $q.notify({
+      type: 'positive',
+      message: `${entries.length} image${
+        entries.length === 1 ? '' : 's'
+      } uploaded (demo).`,
+      icon: 'check_circle',
+    });
+    setTimeout(() => {
+      uploadSuccess.value = false;
+    }, 1000);
+    // Don't revoke previewImages — the new entries reuse those object URLs.
+    selectedFiles.value = [];
+    previewImages.value = [];
+    isUploading.value = false;
+    // If the user is viewing this folder, refresh so the uploads appear.
+    if (selectedFolder.value === folder) {
+      await fetchImagesInFolder();
+    }
+    return;
+  }
+
   isUploading.value = true;
 
   try {
@@ -477,6 +562,14 @@ const fetchImagesError = ref<string | null>(null);
 const fetchFolders = async () => {
   isFetchingFolders.value = true;
   fetchFoldersError.value = null;
+  if (settingsStore.demoMode) {
+    folders.value = [
+      ...demoImageFolders.map((f) => f.name),
+      ...demoState.extraFolders,
+    ];
+    isFetchingFolders.value = false;
+    return;
+  }
   try {
     const res = await fetch(`${API_BASE.value}/api/image-folders`);
     if (!res.ok) throw new Error('Failed to fetch folders');
@@ -489,6 +582,19 @@ const fetchFolders = async () => {
   }
 };
 
+// Demo mode keeps filenames in folderImages (used by v-for + caption); the
+// real URL is looked up here so the UI never has to render the long randomuser
+// URL as a label.
+const demoImageUrlMap = ref<Record<string, string>>({});
+
+const imageSrc = (image: string) => {
+  if (/^https?:\/\//i.test(image)) return image;
+  if (settingsStore.demoMode && demoImageUrlMap.value[image]) {
+    return demoImageUrlMap.value[image];
+  }
+  return `${API_BASE.value}/dataset/${selectedFolder.value}/${image}`;
+};
+
 const openFolder = (folder: string) => {
   selectedFolder.value = folder;
   fetchImagesInFolder();
@@ -497,6 +603,7 @@ const openFolder = (folder: string) => {
 const closeFolder = () => {
   selectedFolder.value = null;
   folderImages.value = [];
+  demoImageUrlMap.value = {};
   fetchImagesError.value = null;
 };
 
@@ -504,6 +611,18 @@ const fetchImagesInFolder = async () => {
   if (!selectedFolder.value) return;
   isFetchingImages.value = true;
   fetchImagesError.value = null;
+  if (settingsStore.demoMode) {
+    const demo = findDemoImageFolder(selectedFolder.value);
+    const baseEntries = demo?.images ?? [];
+    const extras = getDemoExtraImages(selectedFolder.value);
+    const entries = [...baseEntries, ...extras];
+    folderImages.value = entries.map((e) => e.filename);
+    demoImageUrlMap.value = Object.fromEntries(
+      entries.map((e) => [e.filename, e.url])
+    );
+    isFetchingImages.value = false;
+    return;
+  }
   try {
     const res = await fetch(
       `${API_BASE.value}/api/folder-images?folder=${encodeURIComponent(
@@ -536,6 +655,11 @@ function showRenameDialog(folder: string) {
   renameDialog.value = true;
 }
 async function renameFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: rename is disabled.' });
+    renameDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/rename-folder`, {
       method: 'POST',
@@ -558,6 +682,11 @@ function showDeleteDialog(folder: string) {
   deleteDialog.value = true;
 }
 async function deleteFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: delete is disabled.' });
+    deleteDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/delete-folder`, {
       method: 'POST',
@@ -583,6 +712,21 @@ function showCreateFolderDialog() {
 async function createFolderConfirm() {
   if (!newFolderName.value.trim()) {
     $q.notify({ type: 'negative', message: 'Folder name cannot be empty' });
+    return;
+  }
+  if (settingsStore.demoMode) {
+    const name = newFolderName.value.trim();
+    addDemoFolder(name);
+    folders.value = [
+      ...demoImageFolders.map((f) => f.name),
+      ...demoState.extraFolders,
+    ];
+    $q.notify({
+      type: 'positive',
+      message: 'Folder created (demo).',
+      icon: 'check_circle',
+    });
+    createFolderDialog.value = false;
     return;
   }
   try {
@@ -628,6 +772,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload);
+  stopDemoTraining();
 });
 
 // Auto-scroll logs to latest
@@ -639,7 +784,101 @@ watch(trainingLogs, () => {
   });
 });
 
+// Simulates the train-model-stream Server-Sent Events flow when there is no
+// real Pi backend to talk to (demoMode). Streams plausible log lines into the
+// same UI bindings (`trainingLogs`, `progress`, `isTraining`) so the demo
+// shows a working progress bar, scrolling log box, and success notify.
+let demoTrainingTimer: ReturnType<typeof setTimeout> | null = null;
+
+const stopDemoTraining = () => {
+  if (demoTrainingTimer) {
+    clearTimeout(demoTrainingTimer);
+    demoTrainingTimer = null;
+  }
+};
+
+const runDemoTraining = () => {
+  isTraining.value = true;
+  trainingLogs.value = [];
+  progress.value = null;
+
+  // Use the real demo dataset count so totals are consistent with what's
+  // visible in the folder grid.
+  const total = demoImageFolders.reduce((sum, f) => sum + f.images.length, 0);
+  const folderNames = demoImageFolders.map((f) => f.name);
+
+  const preamble = [
+    '[INFO] loading face_recognition models…',
+    '[INFO] dlib backend initialized (CNN=False, hog detector)',
+    `[INFO] discovered ${folderNames.length} identity folders: ${folderNames.join(
+      ', '
+    )}`,
+    `[INFO] queued ${total} images for encoding`,
+    '[INFO] starting encoding pass…',
+  ];
+
+  const completion = [
+    '[INFO] encoding pass complete',
+    `[INFO] writing ${total} encodings to encodings.pickle`,
+    '[INFO] verifying pickle integrity… ok',
+    '[INFO] training complete.',
+  ];
+
+  let step = 0;
+  const preambleEnd = preamble.length;
+  const processingEnd = preambleEnd + total;
+  const completionEnd = processingEnd + completion.length;
+
+  const tick = () => {
+    if (!isTraining.value) return; // user navigated away / cancelled
+
+    if (step < preambleEnd) {
+      trainingLogs.value.push(preamble[step]);
+    } else if (step < processingEnd) {
+      const i = step - preambleEnd + 1;
+      // Pick the folder this image "belongs to" so the log feels real.
+      let acc = 0;
+      let owner = folderNames[0];
+      for (const f of demoImageFolders) {
+        acc += f.images.length;
+        if (i <= acc) {
+          owner = f.name;
+          break;
+        }
+      }
+      const line = `[INFO] processing image ${i}/${total} (${owner})`;
+      trainingLogs.value.push(line);
+      parseProgressFromLog(line);
+    } else if (step < completionEnd) {
+      trainingLogs.value.push(completion[step - processingEnd]);
+    } else {
+      isTraining.value = false;
+      progress.value = null;
+      demoTrainingTimer = null;
+      $q.notify({
+        type: 'positive',
+        message: 'Model training completed! (demo)',
+        icon: 'check_circle',
+      });
+      return;
+    }
+
+    step++;
+    // Setup is leisurely, processing is fast, finalize settles back down so it
+    // feels like real I/O instead of a metronome.
+    const delay =
+      step <= preambleEnd ? 350 : step <= processingEnd ? 25 : 250;
+    demoTrainingTimer = setTimeout(tick, delay);
+  };
+
+  demoTrainingTimer = setTimeout(tick, 200);
+};
+
 const triggerTrainingWithLogs = () => {
+  if (settingsStore.demoMode) {
+    runDemoTraining();
+    return;
+  }
   isTraining.value = true;
   trainingLogs.value = [];
   progress.value = null;
@@ -695,6 +934,25 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.demo-banner-strip {
+  background: linear-gradient(135deg, #4c065c, #6a1b9a);
+  color: #f3eafa;
+  font-size: 0.85rem;
+}
+
+.folder-card,
+.dataset-card {
+  position: relative;
+}
+
+.demo-pill {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  letter-spacing: 0.05em;
+}
+
 .upload-card,
 .gallery-card {
   border-radius: 12px;
