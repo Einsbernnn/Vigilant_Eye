@@ -1,5 +1,11 @@
 <template>
   <div class="photobooth-container">
+    <div v-if="settingsStore.demoMode" class="demo-banner-strip">
+      <span class="demo-icon">🧪</span>
+      <span><strong>Demo:</strong> the camera preview uses your real webcam.
+        Captured frames are added to a session-only folder named after you and
+        will appear in the Face Recognition dataset until you reload.</span>
+    </div>
     <div v-if="!firstName" class="name-prompt">
       <label for="firstName">Enter your first name:</label>
       <input
@@ -55,6 +61,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useSettingsStore } from 'stores/settingsStore';
+import {
+  demoImageFolders,
+  findDemoImageFolder,
+} from 'src/demo/demoData';
+import {
+  addDemoFolder,
+  addDemoImages,
+  getDemoExtraImages,
+  demoState,
+} from 'src/demo/demoState';
 
 const video = ref<HTMLVideoElement | null>(null);
 const photos = ref<string[]>([]);
@@ -86,25 +102,43 @@ async function getVideoDevices() {
 
 async function setFirstName() {
   folderError.value = null;
-  if (nameInput.value.trim()) {
-    const folderName = nameInput.value.trim();
-    // Try to create folder in backend
-    const res = await fetch(`${API_BASE}/api/create-folder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: folderName }),
-    });
-    if (res.status === 409) {
+  if (!nameInput.value.trim()) return;
+  const folderName = nameInput.value.trim();
+
+  if (settingsStore.demoMode) {
+    // No backend to ask, but still enforce uniqueness against the static demo
+    // folders + any folders created earlier in this session.
+    const taken =
+      demoImageFolders.some(
+        (f) => f.name.toLowerCase() === folderName.toLowerCase()
+      ) ||
+      demoState.extraFolders.some(
+        (n) => n.toLowerCase() === folderName.toLowerCase()
+      );
+    if (taken) {
       folderError.value = 'Folder already exists. Please choose a new name.';
       return;
     }
-    if (!res.ok) {
-      folderError.value = 'Error creating folder. Please try again.';
-      return;
-    }
+    addDemoFolder(folderName);
     firstName.value = folderName;
-    // startCamera will be called by the watcher below
+    return;
   }
+
+  const res = await fetch(`${API_BASE}/api/create-folder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: folderName }),
+  });
+  if (res.status === 409) {
+    folderError.value = 'Folder already exists. Please choose a new name.';
+    return;
+  }
+  if (!res.ok) {
+    folderError.value = 'Error creating folder. Please try again.';
+    return;
+  }
+  firstName.value = folderName;
+  // startCamera will be called by the watcher below
 }
 
 async function startCamera() {
@@ -180,12 +214,28 @@ function dataURLtoBlob(dataurl: string) {
 
 function savePhotoToBackend(dataUrl: string, count: number) {
   if (!firstName.value) return;
-  const formData = new FormData();
-  formData.append('folder', firstName.value);
+  const folder = firstName.value;
+  // Use a slugged numeric filename consistent with the rest of the demo
+  // dataset (e.g., john_001.jpg) so the entries blend in with the seeded
+  // randomuser portraits when viewed in the Face Recognition page.
+  const slug = folder.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const startIndex =
+    (findDemoImageFolder(folder)?.images.length ?? 0) +
+    getDemoExtraImages(folder).length;
+  const filename = `${slug}_${String(startIndex + 1).padStart(3, '0')}.jpg`;
   const blob = dataURLtoBlob(dataUrl);
-  const filename = `${firstName.value}${count}.jpg`;
-  formData.append('images', blob, filename);
-  fetch('http://localhost:5000/api/upload', {
+
+  if (settingsStore.demoMode) {
+    // No backend to POST to. Stash the snapshot in the in-memory demo store
+    // as a blob URL so it appears in the Face Recognition dataset.
+    addDemoImages(folder, [{ filename, url: URL.createObjectURL(blob) }]);
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('folder', folder);
+  formData.append('images', blob, `${folder}${count}.jpg`);
+  fetch(`${API_BASE}/api/upload`, {
     method: 'POST',
     body: formData,
   });
@@ -212,7 +262,15 @@ function doneSession() {
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
   }
-  alert('Session complete! Photos saved to your Desktop.');
+  if (settingsStore.demoMode) {
+    alert(
+      `Session complete! ${photos.value.length} snapshot${
+        photos.value.length === 1 ? '' : 's'
+      } saved to demo dataset under "${firstName.value}".`
+    );
+  } else {
+    alert('Session complete! Photos saved to your Desktop.');
+  }
 }
 
 function redoSession() {
@@ -245,6 +303,23 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #ece9e6, #ffffff);
   min-height: 100vh;
   font-family: 'Arial', sans-serif;
+}
+
+.demo-banner-strip {
+  background: linear-gradient(135deg, #4c065c, #6a1b9a);
+  color: #f3eafa;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+  max-width: 640px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.demo-icon {
+  font-size: 1rem;
 }
 .name-prompt {
   display: flex;
