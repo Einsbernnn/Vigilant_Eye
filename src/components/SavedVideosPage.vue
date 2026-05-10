@@ -104,7 +104,7 @@
             >
               <q-badge
                 v-if="settingsStore.demoMode"
-                color="purple"
+                color="accent"
                 text-color="white"
                 class="demo-pill"
               >
@@ -340,7 +340,7 @@
               </q-badge>
               <q-badge
                 v-if="settingsStore.demoMode"
-                color="purple"
+                color="accent"
                 text-color="white"
                 class="demo-pill demo-pill--video"
               >
@@ -555,7 +555,7 @@
               <span class="text-h6">Playing</span>
               <q-badge
                 v-if="settingsStore.demoMode"
-                color="purple"
+                color="accent"
                 text-color="white"
                 class="q-ml-sm"
               >
@@ -659,8 +659,8 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(156, 39, 176, 0.06);
-  border: 1px solid rgba(156, 39, 176, 0.2);
+  background: rgba(var(--vigilant-accent-rgb), 0.06);
+  border: 1px solid rgba(var(--vigilant-accent-rgb), 0.2);
   min-width: 0;
 }
 
@@ -712,8 +712,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: rgba(156, 39, 176, 0.18);
-  border: 1px solid rgba(156, 39, 176, 0.4);
+  background: rgba(var(--vigilant-accent-rgb), 0.18);
+  border: 1px solid rgba(var(--vigilant-accent-rgb), 0.4);
   border-radius: 8px;
 }
 
@@ -739,7 +739,7 @@
 
 .folder-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(156, 39, 176, 0.4);
+  border-color: rgba(var(--vigilant-accent-rgb), 0.4);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
 

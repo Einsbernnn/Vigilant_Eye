@@ -1337,7 +1337,7 @@ onBeforeRouteLeave((to, from, next) => {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: rgba(76, 6, 92, 0.7);
+  background: rgba(var(--vigilant-accent-dark-rgb), 0.7);
   color: #f3eafa;
   border-radius: 8px;
   font-size: 0.75rem;
@@ -1478,7 +1478,7 @@ onBeforeRouteLeave((to, from, next) => {
   border-left-color: #ff5252;
 }
 .notification-item--telegram {
-  border-left-color: #c2185b;
+  border-left-color: var(--q-accent);
 }
 .notification-item--system {
   border-left-color: #9e9e9e;

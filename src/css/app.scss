@@ -1,38 +1,42 @@
 // app global css in SCSS form
+//
+// Accent theming: every accent-tinted surface in the app reads from these CSS
+// variables instead of hardcoding a hex. The Settings drawer's color picker
+// writes a new palette to document.documentElement.style at runtime, which
+// instantly retints all gradients, badges, hover states, and overlays.
+//
+//   --q-accent           main color (used by Quasar's color="accent")
+//   --vigilant-accent-dark   darker shade for gradient bottoms / deep bgs
+//   --vigilant-accent-rgb    RGB triplet for rgba(..., alpha) overlays
+//   --vigilant-accent-dark-rgb  same, for dark-shade overlays
+//
+// Defaults below are the violet preset; settingsStore.applyAccent() overwrites
+// them at boot via syncAccentToDom() to honor the user's saved preference.
 
-// Surveillance theme tokens. The accent color is exposed as a CSS variable so
-// the Settings drawer can re-skin the entire app at runtime by writing to
-// document.documentElement.style.--q-accent. Falls back to the Quasar SCSS
-// $accent default.
 :root {
   --q-accent: #9c27b0;
+  --q-color-accent: var(--q-accent);
+  --vigilant-accent-dark: #4c065c;
+  --vigilant-accent-rgb: 156, 39, 176;
+  --vigilant-accent-dark-rgb: 76, 6, 92;
+
   --vigilant-bg: #0c0218;
   --vigilant-surface: rgba(255, 255, 255, 0.04);
   --vigilant-surface-strong: rgba(255, 255, 255, 0.08);
   --vigilant-text-dim: rgba(244, 238, 249, 0.7);
-  --vigilant-purple-1: #6a1b9a;
-  --vigilant-purple-2: #4c065c;
-  --vigilant-pink: #c2185b;
 }
 
 body.body--dark {
   background: var(--vigilant-bg);
 }
 
-// Make every Quasar component that reads --q-accent (via the q-color-accent
-// CSS variable Quasar generates) follow our runtime override.
-:root {
-  --q-color-accent: var(--q-accent);
-}
-
 // Shared demo-mode banner used on multiple pages (Saved Videos, Upload,
-// Snap Shot). Defining it once in a global stylesheet keeps the look in sync
-// when we tweak the gradient.
+// Snap Shot). Re-tints with the accent automatically.
 .vigilant-demo-banner {
   background: linear-gradient(
     135deg,
-    var(--vigilant-purple-2),
-    var(--vigilant-purple-1)
+    var(--vigilant-accent-dark),
+    var(--q-accent)
   );
   color: #f3eafa;
   font-size: 0.85rem;
