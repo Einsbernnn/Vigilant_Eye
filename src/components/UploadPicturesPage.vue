@@ -1483,18 +1483,24 @@ const runTestRecognition = async () => {
 .dataset-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
   align-items: stretch;
 }
 
 .dataset-stat {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: rgba(156, 39, 176, 0.06);
-  border: 1px solid rgba(156, 39, 176, 0.18);
+  border: 1px solid rgba(156, 39, 176, 0.2);
+  min-width: 0;
+}
+
+:global(.body--dark) .dataset-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .dataset-stat--action {
@@ -1502,19 +1508,25 @@ const runTestRecognition = async () => {
 }
 
 .dataset-stat__value {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dataset-stat__label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--vigilant-text-dim, rgba(0, 0, 0, 0.55));
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.body--dark .dataset-stat__label {
+:global(.body--dark) .dataset-stat__label {
   color: rgba(244, 238, 249, 0.65);
 }
 
@@ -1817,10 +1829,26 @@ const runTestRecognition = async () => {
 
 @media (max-width: 599px) {
   .dataset-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
   }
+  .dataset-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .dataset-stat__value {
+    font-size: 1rem;
+  }
+  .dataset-stat__label {
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+  }
+  // Action tile (Test recognition) gets its own full-width row below the
+  // three stats so the button stays tappable without squeezing the stats.
   .dataset-stat--action {
-    grid-column: span 2;
+    grid-column: span 3;
   }
   .folder-actions {
     flex-direction: row;

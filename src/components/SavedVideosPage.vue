@@ -650,30 +650,46 @@
 .library-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .library-stat {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: 12px;
+  background: rgba(156, 39, 176, 0.06);
+  border: 1px solid rgba(156, 39, 176, 0.2);
+  min-width: 0;
+}
+
+:global(.body--dark) .library-stat {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .library-stat__value {
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .library-stat__label {
-  font-size: 0.75rem;
-  color: var(--vigilant-text-dim, rgba(244, 238, 249, 0.7));
+  font-size: 0.7rem;
+  color: rgba(0, 0, 0, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:global(.body--dark) .library-stat__label {
+  color: rgba(244, 238, 249, 0.65);
 }
 
 .library-toolbar,
@@ -890,7 +906,21 @@
 
 @media (max-width: 599px) {
   .library-stats {
-    grid-template-columns: 1fr;
+    /* keep 3 columns but compact: stack icon over text inside each tile */
+    gap: 6px;
+  }
+  .library-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .library-stat__value {
+    font-size: 1rem;
+  }
+  .library-stat__label {
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
   }
   .library-toolbar,
   .library-folder-toolbar {
