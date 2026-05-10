@@ -109,14 +109,26 @@
           <span class="text-weight-bold">{{ firstName }}</span>
           <q-chip
             outline
-            color="grey-4"
-            text-color="grey-4"
+            :color="targetReached ? 'positive' : 'grey-4'"
+            :text-color="targetReached ? 'positive' : 'grey-4'"
             size="sm"
             class="q-ml-sm"
+            :icon="targetReached ? 'verified' : 'photo_camera'"
           >
-            {{ photos.length }} captured
+            {{ photos.length }}
+            <span v-if="targetCount > 0">/ {{ targetCount }}</span>
           </q-chip>
           <q-space />
+          <q-btn
+            flat
+            round
+            dense
+            icon="settings"
+            :color="optionsOpen ? 'accent' : 'white'"
+            @click="optionsOpen = !optionsOpen"
+          >
+            <q-tooltip>Capture options</q-tooltip>
+          </q-btn>
           <q-btn
             flat
             round
@@ -149,6 +161,122 @@
           </q-btn>
         </q-card-section>
 
+        <!-- Target progress (when a target is set) -->
+        <q-linear-progress
+          v-if="targetCount > 0"
+          :value="Math.min(1, photos.length / targetCount)"
+          :color="targetReached ? 'positive' : 'accent'"
+          size="6px"
+          stripe
+          class="snap-progress"
+        />
+
+        <!-- Brightness coach (only when flash enabled, dismissible) -->
+        <q-banner
+          v-if="flashEnabled && showBrightnessTip"
+          dense
+          rounded
+          class="snap-bright-tip q-mx-md q-mt-md"
+        >
+          <template v-slot:avatar>
+            <q-icon name="brightness_high" color="white" />
+          </template>
+          <span class="text-weight-medium">Turn screen brightness up.</span>
+          The white flash uses your monitor as a fill light — bump
+          brightness to max for the strongest illumination on your face.
+          <template v-slot:action>
+            <q-btn
+              flat
+              dense
+              label="Got it"
+              color="white"
+              no-caps
+              @click="showBrightnessTip = false"
+            />
+          </template>
+        </q-banner>
+
+        <!-- Options panel -->
+        <q-slide-transition>
+          <div v-if="optionsOpen" class="snap-options q-pa-md">
+            <div class="snap-options__row">
+              <div class="snap-option">
+                <q-toggle
+                  :model-value="flashEnabled"
+                  color="accent"
+                  label="Screen flash"
+                  @update:model-value="setFlashEnabled"
+                />
+                <div class="snap-option__hint">
+                  White-out the screen for fill light
+                </div>
+              </div>
+              <div class="snap-option">
+                <q-toggle
+                  v-model="faceGuide"
+                  color="accent"
+                  label="Face guide"
+                />
+                <div class="snap-option__hint">
+                  Oval + thirds overlay for framing
+                </div>
+              </div>
+              <div class="snap-option">
+                <q-toggle
+                  v-model="autoStopAtTarget"
+                  color="accent"
+                  label="Auto-stop at target"
+                />
+                <div class="snap-option__hint">
+                  Stops burst when target count is reached
+                </div>
+              </div>
+            </div>
+            <div class="snap-options__row">
+              <q-select
+                v-model="quality"
+                :options="qualityOptions"
+                label="Quality"
+                outlined
+                dark
+                dense
+                color="accent"
+                emit-value
+                map-options
+                class="snap-options__select"
+              />
+              <q-select
+                v-model="burstSpeed"
+                :options="burstSpeedOptions"
+                label="Burst speed"
+                outlined
+                dark
+                dense
+                color="accent"
+                emit-value
+                map-options
+                class="snap-options__select"
+              />
+              <q-input
+                v-model.number="targetCount"
+                type="number"
+                min="0"
+                max="500"
+                label="Target captures"
+                outlined
+                dark
+                dense
+                color="accent"
+                class="snap-options__select"
+              >
+                <template v-slot:prepend>
+                  <q-icon name="flag" />
+                </template>
+              </q-input>
+            </div>
+          </div>
+        </q-slide-transition>
+
         <div class="snap-frame">
           <video
             ref="video"
@@ -158,6 +286,51 @@
             class="camera-preview"
             :class="{ 'camera-preview--mirrored': mirror }"
           />
+          <!-- Face guide overlay -->
+          <svg
+            v-if="faceGuide"
+            class="snap-face-guide"
+            viewBox="0 0 100 75"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <line
+              x1="33.33"
+              y1="0"
+              x2="33.33"
+              y2="75"
+              class="snap-face-guide__thirds"
+            />
+            <line
+              x1="66.66"
+              y1="0"
+              x2="66.66"
+              y2="75"
+              class="snap-face-guide__thirds"
+            />
+            <line
+              x1="0"
+              y1="25"
+              x2="100"
+              y2="25"
+              class="snap-face-guide__thirds"
+            />
+            <line
+              x1="0"
+              y1="50"
+              x2="100"
+              y2="50"
+              class="snap-face-guide__thirds"
+            />
+            <ellipse
+              cx="50"
+              cy="38"
+              rx="14"
+              ry="20"
+              class="snap-face-guide__oval"
+            />
+          </svg>
+
           <transition name="fade">
             <div v-if="countdown > 0" class="snap-countdown">
               {{ countdown }}
@@ -187,6 +360,15 @@
             outline
             color="accent"
             size="lg"
+            icon="bolt"
+            label="Quick shot"
+            :disable="countdown > 0 || captureInFlight"
+            @click="instantCapture"
+          />
+          <q-btn
+            outline
+            color="accent"
+            size="lg"
             icon="burst_mode"
             :label="bursting ? 'Release to stop' : 'Hold for burst'"
             :class="{ 'snap-btn-active': bursting }"
@@ -197,27 +379,67 @@
             @touchend.prevent="stopBurst"
           />
           <span class="text-grey-5 text-caption snap-controls__hint">
-            Tip: hold spacebar for burst capture.
+            Tip: hold spacebar for burst.
+            <span v-if="flashEnabled">Flash will fire at every capture.</span>
           </span>
         </q-card-section>
 
         <q-separator />
 
         <q-card-section class="snap-thumbs q-pa-md">
-          <div v-if="!photos.length" class="text-grey">
-            No captures yet. Hit Capture or hold the burst button.
+          <div
+            v-if="!photos.length"
+            class="text-grey row items-center q-gutter-sm"
+          >
+            <q-icon name="info" size="sm" />
+            <span>
+              No captures yet. Hit
+              <strong>Capture</strong>, <strong>Quick shot</strong>, or hold
+              <strong>burst</strong>.
+            </span>
           </div>
-          <div v-else class="thumbs-grid">
-            <div
-              v-for="(img, idx) in photos"
-              :key="idx"
-              class="thumbnail"
-              :style="{ backgroundImage: `url(${img})` }"
-            />
+          <div v-else>
+            <div class="row items-center q-mb-sm">
+              <span class="text-caption text-grey-5">
+                Click a thumbnail to remove that frame.
+              </span>
+              <q-space />
+              <q-btn
+                v-if="photos.length"
+                flat
+                dense
+                icon="delete_sweep"
+                color="grey-5"
+                no-caps
+                label="Clear all"
+                @click="clearAllPhotos"
+              />
+            </div>
+            <div class="thumbs-grid">
+              <button
+                v-for="(img, idx) in photos"
+                :key="idx"
+                type="button"
+                class="thumbnail"
+                :style="{ backgroundImage: `url(${img})` }"
+                @click="removePhoto(idx)"
+                aria-label="Remove this capture"
+              >
+                <span class="thumbnail__badge">
+                  <q-icon name="delete" size="14px" />
+                </span>
+              </button>
+            </div>
           </div>
         </q-card-section>
       </q-card>
     </div>
+
+    <!-- Full-screen flash overlay (covers the entire viewport so the user's
+         monitor lights up like a softbox) -->
+    <transition name="flash-overlay">
+      <div v-if="flashOverlayActive" class="snap-flash-overlay" aria-hidden="true" />
+    </transition>
   </q-page>
 </template>
 
@@ -259,6 +481,45 @@ const countdown = ref(0);
 const flashing = ref(false);
 const bursting = ref(false);
 
+// New: capture options panel + features
+const optionsOpen = ref(false);
+const flashEnabled = ref(false);
+const showBrightnessTip = ref(false);
+const faceGuide = ref(false);
+const autoStopAtTarget = ref(false);
+const targetCount = ref(30); // 0 = no target
+const captureInFlight = ref(false);
+
+type Quality = 'low' | 'med' | 'high';
+const quality = ref<Quality>('med');
+const qualityOptions = [
+  { label: 'Low (smaller files)', value: 'low' },
+  { label: 'Medium', value: 'med' },
+  { label: 'High (best quality)', value: 'high' },
+];
+const qualityValue = computed<number>(() => {
+  switch (quality.value) {
+    case 'low':
+      return 0.6;
+    case 'high':
+      return 0.95;
+    case 'med':
+    default:
+      return 0.82;
+  }
+});
+
+const burstSpeed = ref(300);
+const burstSpeedOptions = [
+  { label: 'Very fast (200 ms)', value: 200 },
+  { label: 'Fast (300 ms)', value: 300 },
+  { label: 'Steady (500 ms)', value: 500 },
+  { label: 'Slow (1 s)', value: 1000 },
+];
+
+// Full-screen white overlay used for the flash effect.
+const flashOverlayActive = ref(false);
+
 let stream: MediaStream | null = null;
 let burstTimer: number | null = null;
 let countdownTimer: number | null = null;
@@ -279,6 +540,17 @@ const videoDeviceOptions = computed(() =>
     value: d.deviceId,
   }))
 );
+
+const targetReached = computed(
+  () => targetCount.value > 0 && photos.value.length >= targetCount.value
+);
+
+const setFlashEnabled = (val: boolean) => {
+  flashEnabled.value = val;
+  if (val) {
+    showBrightnessTip.value = true;
+  }
+};
 
 async function getVideoDevices() {
   try {
@@ -383,7 +655,7 @@ function takePhoto() {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.drawImage(video.value, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg');
+  const dataUrl = canvas.toDataURL('image/jpeg', qualityValue.value);
   photos.value.push(dataUrl);
   photoCount.value += 1;
   flashing.value = true;
@@ -428,6 +700,34 @@ function savePhotoToBackend(dataUrl: string, count: number) {
   });
 }
 
+// Capture pipeline: optionally show the screen flash, wait for the camera's
+// auto-exposure to adapt to the brighter scene, take the photo, then drop
+// the flash. Single-shot path; burst keeps the flash on for its duration.
+async function captureWithOptionalFlash() {
+  if (captureInFlight.value) return;
+  captureInFlight.value = true;
+  try {
+    if (flashEnabled.value) {
+      flashOverlayActive.value = true;
+      // Let the webcam exposure settle on the brighter scene before grabbing.
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    takePhoto();
+    if (flashEnabled.value) {
+      // Hold the flash a beat after capture so the user sees it as a real flash.
+      await new Promise((r) => setTimeout(r, 180));
+      flashOverlayActive.value = false;
+    }
+  } finally {
+    captureInFlight.value = false;
+  }
+}
+
+function instantCapture() {
+  if (countdown.value > 0) return;
+  captureWithOptionalFlash();
+}
+
 function startCountdown(seconds: number) {
   if (countdown.value > 0) return;
   countdown.value = seconds;
@@ -438,16 +738,31 @@ function startCountdown(seconds: number) {
         clearInterval(countdownTimer);
         countdownTimer = null;
       }
-      takePhoto();
+      captureWithOptionalFlash();
     }
   }, 1000);
 }
 
-function startBurst() {
+async function startBurst() {
   if (bursting.value) return;
   bursting.value = true;
+  if (flashEnabled.value) {
+    flashOverlayActive.value = true;
+    // Brief warm-up before the first burst frame so it isn't too dark.
+    await new Promise((r) => setTimeout(r, 250));
+  }
   takePhoto();
-  burstTimer = window.setInterval(takePhoto, 300);
+  if (autoStopAtTarget.value && targetReached.value) {
+    stopBurst();
+    return;
+  }
+  burstTimer = window.setInterval(() => {
+    if (autoStopAtTarget.value && targetReached.value) {
+      stopBurst();
+      return;
+    }
+    takePhoto();
+  }, burstSpeed.value);
 }
 
 function stopBurst() {
@@ -456,6 +771,17 @@ function stopBurst() {
   if (burstTimer) {
     clearInterval(burstTimer);
     burstTimer = null;
+  }
+  if (flashOverlayActive.value && !captureInFlight.value) {
+    flashOverlayActive.value = false;
+  }
+  if (targetReached.value && autoStopAtTarget.value) {
+    $q.notify({
+      type: 'positive',
+      message: `Target of ${targetCount.value} reached.`,
+      icon: 'verified',
+      timeout: 1500,
+    });
   }
 }
 
@@ -471,11 +797,25 @@ function handleKeyUp(e: KeyboardEvent) {
   }
 }
 
+function removePhoto(index: number) {
+  photos.value.splice(index, 1);
+  // photoCount intentionally not decremented — savePhotoToBackend uses it as
+  // a monotonically-increasing local id; the demo store also has its own
+  // filename counter, so deleting a thumbnail here only affects the local
+  // preview strip, not entries already pushed to demoState.
+}
+
+function clearAllPhotos() {
+  photos.value = [];
+}
+
 function doneSession() {
   if (stream) {
     stream.getTracks().forEach((track) => track.stop());
     stream = null;
   }
+  // Make sure the flash overlay isn't left on.
+  flashOverlayActive.value = false;
   const message = settingsStore.demoMode
     ? `Session complete. ${photos.value.length} snapshot${
         photos.value.length === 1 ? '' : 's'
@@ -511,6 +851,7 @@ onBeforeUnmount(() => {
     clearInterval(countdownTimer);
     countdownTimer = null;
   }
+  flashOverlayActive.value = false;
   if (stream) {
     stream.getTracks().forEach((track) => track.stop());
   }
@@ -531,7 +872,7 @@ onBeforeUnmount(() => {
 }
 
 .snap-shell {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
@@ -541,6 +882,7 @@ onBeforeUnmount(() => {
   color: #f3eafa;
   border-radius: 16px;
   backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .snap-capture__header {
@@ -549,7 +891,49 @@ onBeforeUnmount(() => {
     rgba(76, 6, 92, 0.4),
     rgba(106, 27, 154, 0.3)
   );
-  border-radius: 16px 16px 0 0;
+}
+
+.snap-progress {
+  width: 100%;
+}
+
+.snap-bright-tip {
+  background: linear-gradient(135deg, #ad1457, #6a1b9a);
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.snap-options {
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.snap-options__row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.snap-options__row + .snap-options__row {
+  margin-top: 16px;
+}
+
+.snap-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.snap-option__hint {
+  font-size: 0.7rem;
+  color: rgba(244, 238, 249, 0.55);
+  margin-left: 32px;
+}
+
+.snap-options__select {
+  min-width: 0;
 }
 
 .snap-frame {
@@ -571,6 +955,29 @@ onBeforeUnmount(() => {
   transform: scaleX(-1);
 }
 
+.snap-face-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.snap-face-guide__thirds {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 0.15;
+  vector-effect: non-scaling-stroke;
+}
+
+.snap-face-guide__oval {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.4;
+  stroke-dasharray: 1.5 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .snap-countdown {
   position: absolute;
   inset: 0;
@@ -582,6 +989,7 @@ onBeforeUnmount(() => {
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
   pointer-events: none;
+  z-index: 3;
 }
 
 .snap-flash {
@@ -589,6 +997,7 @@ onBeforeUnmount(() => {
   inset: 0;
   background: rgba(255, 255, 255, 0.85);
   pointer-events: none;
+  z-index: 4;
 }
 
 .snap-frame__error {
@@ -630,16 +1039,59 @@ onBeforeUnmount(() => {
 }
 
 .thumbnail {
+  position: relative;
   aspect-ratio: 1 / 1;
   background-size: cover;
   background-position: center;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+  padding: 0;
+  background-color: #000;
+  outline: none;
 }
 
 .thumbnail:hover {
   transform: scale(1.05);
+  border-color: var(--q-accent, #c2185b);
+}
+
+.thumbnail:focus-visible {
+  border-color: var(--q-accent, #c2185b);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.thumbnail__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.thumbnail:hover .thumbnail__badge,
+.thumbnail:focus-visible .thumbnail__badge {
+  opacity: 1;
+}
+
+.snap-flash-overlay {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 9999;
+  pointer-events: none;
+  // Soft warm tint at the very edges so it feels like a softbox, not a
+  // harsh strobe — matters for both UX and how the camera meters white.
+  box-shadow: inset 0 0 200px rgba(255, 240, 220, 0.3);
 }
 
 .fade-enter-active,
@@ -660,9 +1112,21 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
+.flash-overlay-enter-active,
+.flash-overlay-leave-active {
+  transition: opacity 0.15s ease;
+}
+.flash-overlay-enter-from,
+.flash-overlay-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 599px) {
   .snap-page {
     padding: 12px;
+  }
+  .snap-options__row {
+    grid-template-columns: 1fr;
   }
   .snap-controls {
     gap: 8px;
