@@ -97,7 +97,6 @@ function notifyUpdate(registration: ServiceWorkerRegistration) {
     caption: 'Reload to get the latest features and fixes.',
     icon: 'system_update',
     timeout: 0, // sticky until the user picks an action
-    position: 'bottom',
     color: 'accent',
     actions: [
       {

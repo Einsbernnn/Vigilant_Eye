@@ -1039,8 +1039,9 @@ const fireDemoNotification = () => {
   $q.notify({
     type: n.level,
     message: n.message,
+    // Demo events read like a feed; let the user finish the line before it
+    // fades. Position is inherited from the global default.
     timeout: 4000,
-    position: 'top-right',
   });
   // Mock detection visual: only for face-related events (known/unknown).
   const sev = classifyNotification(n.message);
@@ -1093,7 +1094,6 @@ onMounted(() => {
             type: 'warning',
             message: data.notification,
             timeout: 5000,
-            position: 'top-right',
           });
         }
       }
