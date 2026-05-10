@@ -1,43 +1,97 @@
 <template>
   <q-page class="q-px-md q-px-md-xl q-pt-md q-pt-md-xl live-page">
     <div class="stream-wrapper">
-      <div class="video-container">
-        <div class="panel-label">Live Stream</div>
-        <!-- Demo mode: YouTube iframe, video file, or static image. Real mode: <img> for MJPEG. -->
-        <iframe
-          v-if="streamingActive && demoIsYoutube"
-          class="video-element"
-          :class="{ 'video-glow': streamingActive }"
-          :src="youtubeEmbedUrl"
-          frameborder="0"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowfullscreen
-        />
-        <video
-          v-else-if="streamingActive && demoIsVideo"
-          ref="demoVideoEl"
-          class="video-element"
-          :class="{ 'video-glow': streamingActive }"
-          :src="videoSrc"
-          :muted="true"
-          loop
-          autoplay
-          playsinline
-          @loadedmetadata="onDemoVideoReady"
-          @error="onStreamError"
-        />
-        <img
-          v-else-if="streamingActive"
-          ref="videoPlayer"
-          class="video-element"
-          :class="{ 'video-glow': streamingActive }"
-          :src="videoSrc"
-          @error="onStreamError"
-          alt="Live Stream"
-        />
-        <div v-else class="video-element video-placeholder">
-          <span class="placeholder-text">Stream is paused</span>
+      <div class="video-container" :class="{ 'video-container--mosaic': viewMode === 'mosaic' }">
+        <div class="panel-label">
+          {{ viewMode === 'mosaic' ? 'Multi-camera mosaic' : 'Live Stream' }}
         </div>
+
+        <!-- Single feed view -->
+        <template v-if="viewMode === 'single'">
+          <!-- Demo mode: YouTube iframe, video file, or static image. Real mode: <img> for MJPEG. -->
+          <iframe
+            v-if="streamingActive && demoIsYoutube"
+            class="video-element"
+            :class="{ 'video-glow': streamingActive }"
+            :src="youtubeEmbedUrl"
+            frameborder="0"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+          />
+          <video
+            v-else-if="streamingActive && demoIsVideo"
+            ref="demoVideoEl"
+            class="video-element"
+            :class="{ 'video-glow': streamingActive }"
+            :src="videoSrc"
+            :muted="true"
+            loop
+            autoplay
+            playsinline
+            @loadedmetadata="onDemoVideoReady"
+            @error="onStreamError"
+          />
+          <img
+            v-else-if="streamingActive"
+            ref="videoPlayer"
+            class="video-element"
+            :class="{ 'video-glow': streamingActive }"
+            :src="videoSrc"
+            @error="onStreamError"
+            alt="Live Stream"
+          />
+          <div v-else class="video-element video-placeholder">
+            <span class="placeholder-text">Stream is paused</span>
+          </div>
+        </template>
+
+        <!-- Mosaic view: 2x2 grid of mock feeds -->
+        <div v-else class="mosaic-grid">
+          <button
+            v-for="cam in mosaicCams"
+            :key="cam.id"
+            type="button"
+            class="mosaic-cell"
+            :class="{ 'mosaic-cell--active': cam.id === activeMosaicCamId }"
+            @click="promoteMosaicCam(cam)"
+            :aria-label="`Promote ${cam.label} to primary`"
+          >
+            <video
+              :src="cam.src"
+              autoplay
+              loop
+              muted
+              playsinline
+              class="mosaic-cell__video"
+            />
+            <span class="mosaic-cell__label">
+              <span class="mosaic-cell__live">
+                <span class="mosaic-cell__dot" />LIVE
+              </span>
+              {{ cam.label }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Privacy mode overlay -->
+        <transition name="fade">
+          <div v-if="privacyMode" class="privacy-overlay">
+            <q-icon name="visibility_off" size="56px" color="white" />
+            <div class="text-h6 q-mt-sm">Privacy mode</div>
+            <div class="text-caption text-grey-4 q-mt-xs">
+              Feed is hidden. Press the toggle or
+              <kbd>P</kbd> to resume.
+            </div>
+            <q-btn
+              outline
+              color="white"
+              icon="visibility"
+              label="Resume feed"
+              class="q-mt-md"
+              @click="privacyMode = false"
+            />
+          </div>
+        </transition>
 
         <!-- Mock face-detection bounding box (synthetic; demo only) -->
         <transition name="fade">
@@ -143,6 +197,63 @@
                   : 'Show detection overlay'
               }}
             </q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            :icon="viewMode === 'mosaic' ? 'view_agenda' : 'grid_view'"
+            :color="viewMode === 'mosaic' ? 'accent' : 'grey-7'"
+            size="md"
+            class="shadow-5"
+            @click="toggleMosaic"
+          >
+            <q-tooltip>
+              {{
+                viewMode === 'mosaic'
+                  ? 'Switch to single feed'
+                  : 'Switch to mosaic (4 cams)'
+              }}
+            </q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            icon="picture_in_picture_alt"
+            color="grey-7"
+            size="md"
+            class="shadow-5"
+            :disable="!canPip"
+            @click="togglePip"
+          >
+            <q-tooltip>
+              {{
+                canPip
+                  ? pipActive
+                    ? 'Exit picture-in-picture'
+                    : 'Open picture-in-picture'
+                  : 'Picture-in-picture unavailable on this source'
+              }}
+            </q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            :icon="privacyMode ? 'visibility' : 'visibility_off'"
+            :color="privacyMode ? 'red' : 'grey-7'"
+            size="md"
+            class="shadow-5"
+            @click="privacyMode = !privacyMode"
+          >
+            <q-tooltip>
+              {{ privacyMode ? 'Resume feed' : 'Privacy mode (hide feed)' }}
+            </q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            icon="fullscreen"
+            color="grey-7"
+            size="md"
+            class="shadow-5"
+            @click="toggleFullscreen"
+          >
+            <q-tooltip>Toggle fullscreen</q-tooltip>
           </q-btn>
           <q-chip
             v-if="connectionStatus"
@@ -368,6 +479,118 @@ const videoSrc = computed(() => {
     ? settingsStore.demoLiveStreamUrl
     : `${settingsStore.liveStreamUrl}/video`;
 });
+
+// ---- View mode: single feed vs 2x2 mosaic --------------------------------
+type ViewMode = 'single' | 'mosaic';
+const viewMode = ref<ViewMode>('single');
+
+interface MosaicCam {
+  id: string;
+  label: string;
+  src: string;
+}
+
+// Four mock surveillance feeds. Same Mixkit clips already proven to work in
+// the rest of the app — different angles so the mosaic looks like a real
+// multi-camera install. Cam 4 mirrors whatever the primary YouTube/MP4
+// source is when it's a video file (skipped when the primary is YouTube,
+// since iframes can't sit inside a <video> element).
+const mosaicCams = computed<MosaicCam[]>(() => [
+  {
+    id: 'cam-1',
+    label: 'Front Door',
+    src: 'https://assets.mixkit.co/videos/4148/4148-720.mp4',
+  },
+  {
+    id: 'cam-2',
+    label: 'Sidewalk',
+    src: 'https://assets.mixkit.co/videos/4002/4002-720.mp4',
+  },
+  {
+    id: 'cam-3',
+    label: 'Driveway',
+    src: 'https://assets.mixkit.co/videos/2740/2740-720.mp4',
+  },
+  {
+    id: 'cam-4',
+    label: 'Side Yard',
+    src: 'https://assets.mixkit.co/videos/2742/2742-720.mp4',
+  },
+]);
+
+const activeMosaicCamId = ref<string>('cam-1');
+
+const promoteMosaicCam = (cam: MosaicCam) => {
+  activeMosaicCamId.value = cam.id;
+  // Promoting a mosaic cell makes it the primary single-feed source.
+  settingsStore.updateDemoLiveStreamUrl(cam.src);
+  viewMode.value = 'single';
+  $q.notify({
+    type: 'positive',
+    message: `Switched primary feed to ${cam.label}.`,
+    icon: 'switch_video',
+    timeout: 1500,
+  });
+};
+
+const toggleMosaic = () => {
+  viewMode.value = viewMode.value === 'mosaic' ? 'single' : 'mosaic';
+};
+
+// ---- Privacy mode --------------------------------------------------------
+const privacyMode = ref(false);
+
+// ---- Picture-in-Picture --------------------------------------------------
+const pipActive = ref(false);
+
+const canPip = computed(() => {
+  if (!('pictureInPictureEnabled' in document)) return false;
+  if (!document.pictureInPictureEnabled) return false;
+  // Only available for <video> sources we own (not YouTube iframe / <img>).
+  return demoIsVideo.value && !demoIsYoutube.value;
+});
+
+const togglePip = async () => {
+  if (!canPip.value) return;
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+      pipActive.value = false;
+    } else if (demoVideoEl.value) {
+      await demoVideoEl.value.requestPictureInPicture();
+      pipActive.value = true;
+    }
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: 'Picture-in-Picture failed.',
+      caption: err instanceof Error ? err.message : undefined,
+    });
+  }
+};
+
+const onPipChange = () => {
+  pipActive.value = document.pictureInPictureElement !== null;
+};
+
+// ---- Fullscreen ----------------------------------------------------------
+const toggleFullscreen = () => {
+  const target =
+    (document.querySelector('.video-container') as HTMLElement) ??
+    document.documentElement;
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {
+      /* swallow */
+    });
+  } else {
+    target.requestFullscreen?.().catch(() => {
+      $q.notify({
+        type: 'negative',
+        message: 'Fullscreen blocked by the browser.',
+      });
+    });
+  }
+};
 
 const youtubeIdFromUrl = (url: string): string | null => {
   const patterns = [
@@ -830,6 +1053,11 @@ const scheduleNextDemoNotification = () => {
 onMounted(() => {
   window.addEventListener('beforeunload', beforeUnloadHandler);
 
+  // PiP state is driven by the document, not by us — listen for the events
+  // so the button stays in sync if the user closes PiP via the browser UI.
+  document.addEventListener('enterpictureinpicture', onPipChange);
+  document.addEventListener('leavepictureinpicture', onPipChange);
+
   if (settingsStore.demoMode) {
     // Seed the panel so it isn't empty on first paint, then start the
     // randomized trigger loop. Skips the real Pi poller entirely.
@@ -865,6 +1093,8 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
+  document.removeEventListener('enterpictureinpicture', onPipChange);
+  document.removeEventListener('leavepictureinpicture', onPipChange);
   if (pirPollTimer) clearInterval(pirPollTimer);
   if (demoNotifTimer) clearTimeout(demoNotifTimer);
   if (activeBoxClearTimer) clearTimeout(activeBoxClearTimer);
@@ -940,6 +1170,115 @@ onBeforeRouteLeave((to, from, next) => {
 
 .video-glow {
   box-shadow: 0 0 30px rgba(66, 133, 244, 0.2);
+}
+
+.video-container--mosaic {
+  background: #050208;
+}
+
+.mosaic-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 70vh;
+  background: #050208;
+}
+
+.mosaic-cell {
+  position: relative;
+  background: #000;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: outline 0.2s ease, transform 0.2s ease;
+  outline: 2px solid transparent;
+}
+
+.mosaic-cell:hover {
+  outline-color: rgba(255, 255, 255, 0.4);
+  z-index: 1;
+}
+
+.mosaic-cell--active {
+  outline-color: var(--q-accent, #9c27b0);
+}
+
+.mosaic-cell__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mosaic-cell__label {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.mosaic-cell__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff5252;
+}
+
+.mosaic-cell__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff5252;
+  box-shadow: 0 0 8px rgba(255, 82, 82, 0.8);
+  animation: live-dot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.privacy-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 0, 20, 0.96);
+  color: #fff;
+  z-index: 10;
+  text-align: center;
+  padding: 24px;
+  backdrop-filter: blur(20px);
+}
+
+.privacy-overlay kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.75rem;
 }
 
 .demo-banner {
