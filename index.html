@@ -9,8 +9,20 @@
     <meta name="msapplication-tap-highlight" content="no" />
     <meta
       name="viewport"
-      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>"
+      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, viewport-fit=cover<% if (ctx.mode.cordova || ctx.mode.capacitor) { %><% } %>"
     />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#4c065c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- "default" gives the iOS status bar its own opaque background and
+         keeps app content below it. "black-translucent" makes the bar
+         transparent, which requires every fixed-positioned header to
+         manually pad for env(safe-area-inset-top) — too easy to get wrong. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Vigilant" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <link
       rel="icon"
@@ -37,8 +49,52 @@
       href="icons/favicon-16x16.png"
     />
     <link rel="icon" type="image/ico" href="icons/favicon-16x16.png" />
+
+    <style>
+      /* Zoom guards.
+         - touch-action: manipulation kills the iOS double-tap zoom (the
+           viewport meta only blocks pinch-zoom).
+         - text-size-adjust prevents Mobile Safari and Chrome from auto-
+           bumping font sizes on rotation / standalone PWA launches.
+         - -webkit-tap-highlight-color removes the gray flash on tap. */
+      html {
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      body {
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior-y: none;
+      }
+      /* Quasar's q-header / q-footer use position: fixed, so body padding
+         can't push them clear of iOS's notch + home indicator. Pad the
+         fixed bars themselves. The status-bar-style is "default" so iOS
+         already pushes the viewport down past the status bar in portrait,
+         but env(safe-area-inset-top) on q-header still matters in
+         landscape (notch on the side). */
+      .q-header {
+        padding-top: env(safe-area-inset-top);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      .q-footer {
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      /* iOS zooms inputs whose computed font-size is < 16px. Floor every
+         text-entry to 16px so focus never triggers an auto-zoom. */
+      input,
+      select,
+      textarea {
+        font-size: max(16px, 1em);
+      }
+    </style>
   </head>
   <body>
     <!-- quasar:entry-point -->
+    <!-- Service worker registration is handled by src/boot/pwa.ts so it can
+         drive Quasar's Notify plugin for the update prompt + capture
+         beforeinstallprompt for the in-app install button. -->
   </body>
 </html>

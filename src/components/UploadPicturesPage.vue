@@ -1,5 +1,56 @@
 <template>
-  <q-page class="q-pa-lg">
+  <q-page class="q-pa-md q-pa-md-lg face-page">
+    <q-banner
+      v-if="settingsStore.demoMode"
+      class="vigilant-demo-banner q-mb-md"
+      rounded
+      dense
+    >
+      <template v-slot:avatar>
+        <q-icon name="science" color="white" />
+      </template>
+      <span class="text-weight-medium">Demo data:</span>
+      base folders and photos are placeholder content from randomuser.me. You
+      can create folders, upload images, and run the (simulated) model
+      training — changes live in your browser tab and reset on reload.
+      Renames and deletes are disabled.
+    </q-banner>
+
+    <!-- Dataset stats -->
+    <div class="dataset-stats q-mb-md">
+      <div class="dataset-stat">
+        <q-icon name="group" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ identityCount }}</div>
+          <div class="dataset-stat__label">Identities</div>
+        </div>
+      </div>
+      <div class="dataset-stat">
+        <q-icon name="photo_library" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ totalImageCount }}</div>
+          <div class="dataset-stat__label">Total images</div>
+        </div>
+      </div>
+      <div class="dataset-stat">
+        <q-icon name="model_training" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ lastTrainingLabel }}</div>
+          <div class="dataset-stat__label">Last training</div>
+        </div>
+      </div>
+      <div class="dataset-stat dataset-stat--action">
+        <q-btn
+          unelevated
+          color="accent"
+          icon="psychology"
+          label="Test recognition"
+          no-caps
+          @click="testRecognitionDialog = true"
+        />
+      </div>
+    </div>
+
     <div class="column items-center q-gutter-lg">
       <q-card class="upload-card q-pa-lg shadow-5">
         <q-form @submit.prevent="handleUpload" class="column q-gutter-y-md">
@@ -193,32 +244,62 @@
             <div
               v-for="folder in folders"
               :key="folder"
-              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+              class="col-6 col-sm-4 col-md-3 col-lg-2"
             >
               <q-card
                 class="image-card folder-card cursor-pointer"
                 @click="openFolder(folder)"
               >
+                <q-badge
+                  v-if="settingsStore.demoMode"
+                  color="purple"
+                  text-color="white"
+                  class="demo-pill"
+                >
+                  Demo
+                </q-badge>
                 <div class="column items-center q-pa-md">
-                  <q-icon name="folder" color="accent" size="64px" />
-                  <div class="text-center text-weight-bold q-mt-sm">
+                  <q-icon name="folder" color="accent" size="48px" />
+                  <div class="text-center text-weight-bold q-mt-sm folder-name">
                     {{ folder }}
                   </div>
-                  <div class="row q-gutter-xs q-mt-sm">
+                  <q-chip
+                    square
+                    size="sm"
+                    color="accent"
+                    text-color="white"
+                    class="q-mt-xs folder-count-chip"
+                  >
+                    {{ folderImageCount(folder) }}
+                  </q-chip>
+                  <div class="row q-gutter-xs q-mt-sm folder-actions">
+                    <q-btn
+                      dense
+                      flat
+                      icon="info"
+                      color="accent"
+                      @click.stop="openIdentityDetail(folder)"
+                    >
+                      <q-tooltip>Details</q-tooltip>
+                    </q-btn>
                     <q-btn
                       dense
                       flat
                       icon="edit"
                       color="accent"
                       @click.stop="showRenameDialog(folder)"
-                    />
+                    >
+                      <q-tooltip>Rename</q-tooltip>
+                    </q-btn>
                     <q-btn
                       dense
                       flat
                       icon="delete"
                       color="negative"
                       @click.stop="showDeleteDialog(folder)"
-                    />
+                    >
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
                   </div>
                 </div>
               </q-card>
@@ -265,15 +346,23 @@
             </template>
             Error loading images: {{ fetchImagesError }}
           </q-banner>
-          <div v-else class="row q-col-gutter-md">
+          <div v-else class="dataset-grid">
             <div
               v-for="(image, index) in folderImages"
               :key="index"
-              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+              class="dataset-grid__cell"
             >
-              <q-card class="image-card">
+              <q-card class="image-card dataset-card">
+                <q-badge
+                  v-if="settingsStore.demoMode"
+                  color="purple"
+                  text-color="white"
+                  class="demo-pill"
+                >
+                  Demo
+                </q-badge>
                 <q-img
-                  :src="`${API_BASE}/dataset/${selectedFolder}/${image}`"
+                  :src="imageSrc(image)"
                   :ratio="1"
                   class="image-item"
                   spinner-color="accent"
@@ -354,13 +443,243 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Identity detail drawer -->
+    <q-dialog
+      v-model="identityDetailOpen"
+      :maximized="$q.screen.lt.sm"
+      transition-show="slide-left"
+      transition-hide="slide-right"
+      position="right"
+    >
+      <q-card class="identity-detail-card column">
+        <q-card-section
+          class="identity-detail__header row items-center q-pa-md"
+        >
+          <q-avatar size="42px" color="accent" text-color="white">
+            <span>{{ initialsFor(detailIdentity) }}</span>
+          </q-avatar>
+          <div class="q-ml-md">
+            <div class="text-h6">{{ detailIdentity }}</div>
+            <div class="text-caption text-grey-4">
+              Identity profile
+            </div>
+          </div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup color="white" />
+        </q-card-section>
+
+        <q-scroll-area class="col">
+          <div class="q-pa-md">
+            <div class="identity-stat-row">
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityImageCount(detailIdentity) }}
+                </div>
+                <div class="identity-stat__label">Photos</div>
+              </div>
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityLastSeenLabel(detailIdentity) }}
+                </div>
+                <div class="identity-stat__label">Last seen</div>
+              </div>
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityQualityScore(detailIdentity) }}%
+                </div>
+                <div class="identity-stat__label">Train quality</div>
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Recent photos</div>
+              <div class="identity-thumbs">
+                <div
+                  v-for="img in recentImagesFor(detailIdentity)"
+                  :key="img.filename"
+                  class="identity-thumb"
+                  :style="{ backgroundImage: `url(${img.url})` }"
+                />
+                <div
+                  v-if="recentImagesFor(detailIdentity).length === 0"
+                  class="text-grey"
+                >
+                  No photos in this folder.
+                </div>
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Training quality</div>
+              <q-linear-progress
+                :value="identityQualityScore(detailIdentity) / 100"
+                :color="
+                  identityQualityScore(detailIdentity) >= 80
+                    ? 'positive'
+                    : identityQualityScore(detailIdentity) >= 60
+                    ? 'warning'
+                    : 'negative'
+                "
+                size="14px"
+                rounded
+              />
+              <div class="text-caption text-grey-5 q-mt-xs">
+                Synthetic score from photo count and image variety. Aim for
+                30+ photos with mixed angles for the strongest match.
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Activity timeline</div>
+              <q-timeline color="accent" dense layout="dense">
+                <q-timeline-entry
+                  v-for="(event, idx) in identityTimeline(detailIdentity)"
+                  :key="idx"
+                  :title="event.title"
+                  :subtitle="event.when"
+                  :icon="event.icon"
+                  :color="event.color"
+                />
+              </q-timeline>
+            </div>
+          </div>
+        </q-scroll-area>
+
+        <q-separator />
+
+        <q-card-actions class="q-pa-md">
+          <q-btn
+            outline
+            color="negative"
+            icon="delete_forever"
+            label="Delete identity"
+            no-caps
+            :disable="!canDeleteIdentity(detailIdentity)"
+            @click="confirmDeleteIdentity"
+          />
+          <q-space />
+          <q-btn
+            unelevated
+            color="accent"
+            icon="folder_open"
+            label="Open"
+            no-caps
+            @click="openIdentityFromDetail"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Test Recognition dialog -->
+    <q-dialog
+      v-model="testRecognitionDialog"
+      :maximized="$q.screen.lt.sm"
+      @hide="resetTestRecognition"
+    >
+      <q-card class="test-recog-card">
+        <q-card-section
+          class="row items-center vigilant-demo-banner q-pa-md"
+        >
+          <q-icon name="psychology" size="sm" class="q-mr-sm" />
+          <div class="text-h6">Test recognition</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="text-caption text-grey q-mb-sm">
+            Drop or pick an image. The match against the dataset is
+            <strong>simulated</strong> — picks a deterministic identity from
+            the file's size and name, with a synthetic confidence score.
+          </div>
+
+          <div
+            class="test-recog-drop"
+            :class="{ 'test-recog-drop--has': !!testFile }"
+            @dragover.prevent
+            @drop.prevent="onTestDrop"
+            @click="testFileInput?.click()"
+          >
+            <q-img
+              v-if="testFilePreview"
+              :src="testFilePreview"
+              :ratio="1"
+              class="test-recog-drop__preview"
+            />
+            <template v-else>
+              <q-icon name="add_photo_alternate" size="48px" color="accent" />
+              <div class="text-grey text-caption q-mt-sm">
+                Drop image here or click to browse
+              </div>
+            </template>
+            <input
+              ref="testFileInput"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="onTestFileChange"
+            />
+          </div>
+
+          <div v-if="testResult" class="test-recog-result q-mt-md">
+            <div class="row items-center q-gutter-md">
+              <q-img
+                :src="testResult.matchPreviewUrl"
+                :ratio="1"
+                class="test-recog-result__avatar"
+              />
+              <div class="col">
+                <div class="text-overline text-grey-5">Best match</div>
+                <div class="text-h5 text-weight-bold">
+                  {{ testResult.identity }}
+                </div>
+                <q-linear-progress
+                  :value="testResult.confidence"
+                  color="accent"
+                  size="14px"
+                  class="q-mt-sm"
+                  rounded
+                />
+                <div class="text-caption q-mt-xs">
+                  Confidence: {{ Math.round(testResult.confidence * 100) }}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md">
+          <q-btn flat label="Reset" color="grey-6" @click="resetTestRecognition" />
+          <q-btn
+            unelevated
+            color="accent"
+            label="Run match"
+            :loading="testRunning"
+            :disable="!testFile"
+            @click="runTestRecognition"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
+import {
+  demoImageFolders,
+  findDemoImageFolder,
+} from 'src/demo/demoData';
+import {
+  demoState,
+  addDemoFolder,
+  addDemoImages,
+  getDemoExtraImages,
+  markTrainingComplete,
+} from 'src/demo/demoState';
 
 const $q = useQuasar();
 const settingsStore = useSettingsStore();
@@ -421,6 +740,50 @@ const handleUpload = async () => {
     return;
   }
 
+  if (settingsStore.demoMode) {
+    isUploading.value = true;
+    // Simulate a brief upload — feels real, not instant.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const folder = selectedFolder.value;
+    // Existing image count for this folder so new filenames continue the
+    // "alice_NNN.jpg" sequence (or just the folder slug for custom folders).
+    const slug = folder.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const existingCount =
+      (findDemoImageFolder(folder)?.images.length ?? 0) +
+      getDemoExtraImages(folder).length;
+    const entries = selectedFiles.value.map((file, i) => {
+      const ext = file.name.match(/\.(jpe?g|png|webp)$/i)?.[0] ?? '.jpg';
+      // Reuse the preview blob URL — no need to allocate a second one per
+      // file. These intentionally outlive this scope (no revoke) because
+      // they are the persistent <q-img> src for the demo folder.
+      return {
+        filename: `${slug}_${String(existingCount + i + 1).padStart(3, '0')}${ext}`,
+        url: previewImages.value[i] ?? URL.createObjectURL(file),
+      };
+    });
+    addDemoImages(folder, entries);
+    uploadSuccess.value = true;
+    $q.notify({
+      type: 'positive',
+      message: `${entries.length} image${
+        entries.length === 1 ? '' : 's'
+      } uploaded (demo).`,
+      icon: 'check_circle',
+    });
+    setTimeout(() => {
+      uploadSuccess.value = false;
+    }, 1000);
+    // Don't revoke previewImages — the new entries reuse those object URLs.
+    selectedFiles.value = [];
+    previewImages.value = [];
+    isUploading.value = false;
+    // If the user is viewing this folder, refresh so the uploads appear.
+    if (selectedFolder.value === folder) {
+      await fetchImagesInFolder();
+    }
+    return;
+  }
+
   isUploading.value = true;
 
   try {
@@ -477,6 +840,14 @@ const fetchImagesError = ref<string | null>(null);
 const fetchFolders = async () => {
   isFetchingFolders.value = true;
   fetchFoldersError.value = null;
+  if (settingsStore.demoMode) {
+    folders.value = [
+      ...demoImageFolders.map((f) => f.name),
+      ...demoState.extraFolders,
+    ];
+    isFetchingFolders.value = false;
+    return;
+  }
   try {
     const res = await fetch(`${API_BASE.value}/api/image-folders`);
     if (!res.ok) throw new Error('Failed to fetch folders');
@@ -489,6 +860,19 @@ const fetchFolders = async () => {
   }
 };
 
+// Demo mode keeps filenames in folderImages (used by v-for + caption); the
+// real URL is looked up here so the UI never has to render the long randomuser
+// URL as a label.
+const demoImageUrlMap = ref<Record<string, string>>({});
+
+const imageSrc = (image: string) => {
+  if (/^https?:\/\//i.test(image)) return image;
+  if (settingsStore.demoMode && demoImageUrlMap.value[image]) {
+    return demoImageUrlMap.value[image];
+  }
+  return `${API_BASE.value}/dataset/${selectedFolder.value}/${image}`;
+};
+
 const openFolder = (folder: string) => {
   selectedFolder.value = folder;
   fetchImagesInFolder();
@@ -497,6 +881,7 @@ const openFolder = (folder: string) => {
 const closeFolder = () => {
   selectedFolder.value = null;
   folderImages.value = [];
+  demoImageUrlMap.value = {};
   fetchImagesError.value = null;
 };
 
@@ -504,6 +889,18 @@ const fetchImagesInFolder = async () => {
   if (!selectedFolder.value) return;
   isFetchingImages.value = true;
   fetchImagesError.value = null;
+  if (settingsStore.demoMode) {
+    const demo = findDemoImageFolder(selectedFolder.value);
+    const baseEntries = demo?.images ?? [];
+    const extras = getDemoExtraImages(selectedFolder.value);
+    const entries = [...baseEntries, ...extras];
+    folderImages.value = entries.map((e) => e.filename);
+    demoImageUrlMap.value = Object.fromEntries(
+      entries.map((e) => [e.filename, e.url])
+    );
+    isFetchingImages.value = false;
+    return;
+  }
   try {
     const res = await fetch(
       `${API_BASE.value}/api/folder-images?folder=${encodeURIComponent(
@@ -536,6 +933,11 @@ function showRenameDialog(folder: string) {
   renameDialog.value = true;
 }
 async function renameFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: rename is disabled.' });
+    renameDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/rename-folder`, {
       method: 'POST',
@@ -558,6 +960,11 @@ function showDeleteDialog(folder: string) {
   deleteDialog.value = true;
 }
 async function deleteFolderConfirm() {
+  if (settingsStore.demoMode) {
+    $q.notify({ type: 'info', message: 'Demo mode: delete is disabled.' });
+    deleteDialog.value = false;
+    return;
+  }
   try {
     await fetch(`${API_BASE.value}/api/delete-folder`, {
       method: 'POST',
@@ -583,6 +990,21 @@ function showCreateFolderDialog() {
 async function createFolderConfirm() {
   if (!newFolderName.value.trim()) {
     $q.notify({ type: 'negative', message: 'Folder name cannot be empty' });
+    return;
+  }
+  if (settingsStore.demoMode) {
+    const name = newFolderName.value.trim();
+    addDemoFolder(name);
+    folders.value = [
+      ...demoImageFolders.map((f) => f.name),
+      ...demoState.extraFolders,
+    ];
+    $q.notify({
+      type: 'positive',
+      message: 'Folder created (demo).',
+      icon: 'check_circle',
+    });
+    createFolderDialog.value = false;
     return;
   }
   try {
@@ -628,6 +1050,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload);
+  stopDemoTraining();
 });
 
 // Auto-scroll logs to latest
@@ -639,7 +1062,102 @@ watch(trainingLogs, () => {
   });
 });
 
+// Simulates the train-model-stream Server-Sent Events flow when there is no
+// real Pi backend to talk to (demoMode). Streams plausible log lines into the
+// same UI bindings (`trainingLogs`, `progress`, `isTraining`) so the demo
+// shows a working progress bar, scrolling log box, and success notify.
+let demoTrainingTimer: ReturnType<typeof setTimeout> | null = null;
+
+const stopDemoTraining = () => {
+  if (demoTrainingTimer) {
+    clearTimeout(demoTrainingTimer);
+    demoTrainingTimer = null;
+  }
+};
+
+const runDemoTraining = () => {
+  isTraining.value = true;
+  trainingLogs.value = [];
+  progress.value = null;
+
+  // Use the real demo dataset count so totals are consistent with what's
+  // visible in the folder grid.
+  const total = demoImageFolders.reduce((sum, f) => sum + f.images.length, 0);
+  const folderNames = demoImageFolders.map((f) => f.name);
+
+  const preamble = [
+    '[INFO] loading face_recognition models…',
+    '[INFO] dlib backend initialized (CNN=False, hog detector)',
+    `[INFO] discovered ${folderNames.length} identity folders: ${folderNames.join(
+      ', '
+    )}`,
+    `[INFO] queued ${total} images for encoding`,
+    '[INFO] starting encoding pass…',
+  ];
+
+  const completion = [
+    '[INFO] encoding pass complete',
+    `[INFO] writing ${total} encodings to encodings.pickle`,
+    '[INFO] verifying pickle integrity… ok',
+    '[INFO] training complete.',
+  ];
+
+  let step = 0;
+  const preambleEnd = preamble.length;
+  const processingEnd = preambleEnd + total;
+  const completionEnd = processingEnd + completion.length;
+
+  const tick = () => {
+    if (!isTraining.value) return; // user navigated away / cancelled
+
+    if (step < preambleEnd) {
+      trainingLogs.value.push(preamble[step]);
+    } else if (step < processingEnd) {
+      const i = step - preambleEnd + 1;
+      // Pick the folder this image "belongs to" so the log feels real.
+      let acc = 0;
+      let owner = folderNames[0];
+      for (const f of demoImageFolders) {
+        acc += f.images.length;
+        if (i <= acc) {
+          owner = f.name;
+          break;
+        }
+      }
+      const line = `[INFO] processing image ${i}/${total} (${owner})`;
+      trainingLogs.value.push(line);
+      parseProgressFromLog(line);
+    } else if (step < completionEnd) {
+      trainingLogs.value.push(completion[step - processingEnd]);
+    } else {
+      isTraining.value = false;
+      progress.value = null;
+      demoTrainingTimer = null;
+      markTrainingComplete();
+      $q.notify({
+        type: 'positive',
+        message: 'Model training completed! (demo)',
+        icon: 'check_circle',
+      });
+      return;
+    }
+
+    step++;
+    // Setup is leisurely, processing is fast, finalize settles back down so it
+    // feels like real I/O instead of a metronome.
+    const delay =
+      step <= preambleEnd ? 350 : step <= processingEnd ? 25 : 250;
+    demoTrainingTimer = setTimeout(tick, delay);
+  };
+
+  demoTrainingTimer = setTimeout(tick, 200);
+};
+
 const triggerTrainingWithLogs = () => {
+  if (settingsStore.demoMode) {
+    runDemoTraining();
+    return;
+  }
   isTraining.value = true;
   trainingLogs.value = [];
   progress.value = null;
@@ -692,9 +1210,361 @@ watch(
 onMounted(() => {
   fetchFolders();
 });
+
+// ---- Dataset stats ----------------------------------------------------------
+const folderImageCount = (folder: string): string => {
+  const base = findDemoImageFolder(folder)?.images.length ?? 0;
+  const extra = getDemoExtraImages(folder).length;
+  const total = base + extra;
+  return `${total} ${total === 1 ? 'photo' : 'photos'}`;
+};
+
+const identityCount = computed(() => folders.value.length);
+
+const totalImageCount = computed(() => {
+  if (settingsStore.demoMode) {
+    const base = demoImageFolders.reduce((s, f) => s + f.images.length, 0);
+    const extras = Object.values(demoState.extraImages).reduce(
+      (s, arr) => s + arr.length,
+      0
+    );
+    return base + extras;
+  }
+  return '—';
+});
+
+const lastTrainingLabel = computed(() => {
+  const ts = demoState.lastTrainingAt;
+  if (!ts) return 'Never';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(ts).toLocaleDateString();
+});
+
+// ---- Identity detail drawer -------------------------------------------------
+const identityDetailOpen = ref(false);
+const detailIdentity = ref<string>('');
+
+const openIdentityDetail = (identity: string) => {
+  detailIdentity.value = identity;
+  identityDetailOpen.value = true;
+};
+
+const initialsFor = (name: string): string => {
+  if (!name) return '?';
+  return name
+    .split(/\s+/)
+    .map((s) => s.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('');
+};
+
+const identityImageCount = (identity: string): number => {
+  if (!identity) return 0;
+  const base = findDemoImageFolder(identity)?.images.length ?? 0;
+  const extras = getDemoExtraImages(identity).length;
+  return base + extras;
+};
+
+const recentImagesFor = (identity: string) => {
+  if (!identity) return [];
+  const base = findDemoImageFolder(identity)?.images ?? [];
+  const extras = getDemoExtraImages(identity);
+  // Show the most recent uploads first if any, otherwise the first batch.
+  return [...extras, ...base].slice(0, 6);
+};
+
+// Synthetic "last seen" derived from a hash of the identity name + the demo
+// state's training timestamp. Stable per identity within a session.
+const identityLastSeenLabel = (identity: string): string => {
+  if (!identity) return 'Never';
+  const ts = demoState.lastTrainingAt;
+  if (!ts) return 'Never';
+  let h = 2166136261;
+  for (let i = 0; i < identity.length; i++) {
+    h ^= identity.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const minutesAgo = (h % 600) + 1; // 1-600 min
+  if (minutesAgo < 60) return `${minutesAgo}m ago`;
+  return `${Math.floor(minutesAgo / 60)}h ago`;
+};
+
+// Score curve: 0-9 photos -> proportional, 10-29 -> 50-80, 30+ -> 85-98
+const identityQualityScore = (identity: string): number => {
+  const n = identityImageCount(identity);
+  if (n === 0) return 0;
+  if (n < 10) return Math.round((n / 10) * 50);
+  if (n < 30) return 50 + Math.round(((n - 10) / 20) * 30);
+  return 85 + Math.min(13, Math.floor((n - 30) / 4));
+};
+
+const identityTimeline = (identity: string) => {
+  if (!identity) return [];
+  const events: {
+    title: string;
+    when: string;
+    icon: string;
+    color: string;
+  }[] = [];
+  const baseCount = findDemoImageFolder(identity)?.images.length ?? 0;
+  const extraCount = getDemoExtraImages(identity).length;
+
+  events.push({
+    title: 'Identity created',
+    when: baseCount > 0 ? 'Seed dataset' : 'Just now',
+    icon: 'person_add',
+    color: 'accent',
+  });
+  if (baseCount > 0) {
+    events.push({
+      title: `${baseCount} seed photos imported`,
+      when: 'Initial dataset',
+      icon: 'photo_library',
+      color: 'positive',
+    });
+  }
+  if (extraCount > 0) {
+    events.push({
+      title: `${extraCount} new photos added`,
+      when: 'This session',
+      icon: 'add_a_photo',
+      color: 'info',
+    });
+  }
+  if (demoState.lastTrainingAt) {
+    events.push({
+      title: 'Model trained',
+      when: lastTrainingLabel.value,
+      icon: 'model_training',
+      color: 'positive',
+    });
+  }
+  events.push({
+    title: `Last detection: ${identityLastSeenLabel(identity)}`,
+    when: 'Synthetic',
+    icon: 'visibility',
+    color: 'grey',
+  });
+  return events;
+};
+
+const canDeleteIdentity = (identity: string): boolean => {
+  // In demo mode we only allow deleting session-added (extraFolders) identities,
+  // not the static seed ones — that keeps reload behavior coherent.
+  if (settingsStore.demoMode) {
+    return demoState.extraFolders.includes(identity);
+  }
+  return true;
+};
+
+const confirmDeleteIdentity = () => {
+  const identity = detailIdentity.value;
+  if (!canDeleteIdentity(identity)) return;
+  $q.dialog({
+    title: `Delete "${identity}"?`,
+    message:
+      'This removes the identity folder and all photos in this session. The dataset only resets fully on page reload.',
+    cancel: true,
+    persistent: true,
+    color: 'negative',
+  }).onOk(() => {
+    demoState.extraFolders = demoState.extraFolders.filter(
+      (n) => n !== identity
+    );
+    delete demoState.extraImages[identity];
+    fetchFolders();
+    identityDetailOpen.value = false;
+    $q.notify({
+      type: 'positive',
+      message: `Identity "${identity}" removed.`,
+    });
+  });
+};
+
+const openIdentityFromDetail = () => {
+  identityDetailOpen.value = false;
+  openFolder(detailIdentity.value);
+};
+
+// ---- Test Recognition (demo theatre) ----------------------------------------
+const testRecognitionDialog = ref(false);
+const testFile = ref<File | null>(null);
+const testFilePreview = ref<string | null>(null);
+const testFileInput = ref<HTMLInputElement | null>(null);
+const testRunning = ref(false);
+const testResult = ref<{
+  identity: string;
+  confidence: number;
+  matchPreviewUrl: string;
+} | null>(null);
+
+const setTestFile = (file: File) => {
+  if (testFilePreview.value) {
+    URL.revokeObjectURL(testFilePreview.value);
+  }
+  testFile.value = file;
+  testFilePreview.value = URL.createObjectURL(file);
+  testResult.value = null;
+};
+
+const onTestFileChange = (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) setTestFile(file);
+  input.value = '';
+};
+
+const onTestDrop = (e: DragEvent) => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith('image/')) {
+    setTestFile(file);
+  }
+};
+
+const resetTestRecognition = () => {
+  if (testFilePreview.value) {
+    URL.revokeObjectURL(testFilePreview.value);
+  }
+  testFile.value = null;
+  testFilePreview.value = null;
+  testResult.value = null;
+  testRunning.value = false;
+};
+
+const runTestRecognition = async () => {
+  if (!testFile.value) return;
+  testRunning.value = true;
+  // Brief delay so the spinner state registers — feels like work.
+  await new Promise((r) => setTimeout(r, 850));
+
+  // Deterministic identity pick: hash filename + size, mod folder count.
+  const candidates = folders.value;
+  if (!candidates.length) {
+    testRunning.value = false;
+    $q.notify({
+      type: 'warning',
+      message: 'No identity folders to match against.',
+    });
+    return;
+  }
+  const seedSrc = `${testFile.value.name}:${testFile.value.size}`;
+  let h = 2166136261;
+  for (let i = 0; i < seedSrc.length; i++) {
+    h ^= seedSrc.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const identity = candidates[h % candidates.length];
+  // Synthetic confidence in [0.85, 0.97]
+  const confidence = 0.85 + ((h >>> 16) % 1200) / 10000;
+
+  // Use the first image from that identity's dataset as the "match preview".
+  const baseImages = findDemoImageFolder(identity)?.images ?? [];
+  const extraImages = getDemoExtraImages(identity);
+  const candidateImg = baseImages[0] ?? extraImages[0];
+  const matchPreviewUrl =
+    candidateImg?.url ?? '/icons/vigilant.png';
+
+  testResult.value = { identity, confidence, matchPreviewUrl };
+  testRunning.value = false;
+};
 </script>
 
 <style lang="scss" scoped>
+.face-page {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.dataset-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.dataset-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(156, 39, 176, 0.06);
+  border: 1px solid rgba(156, 39, 176, 0.2);
+  min-width: 0;
+}
+
+:global(.body--dark) .dataset-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dataset-stat--action {
+  justify-content: center;
+}
+
+.dataset-stat__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dataset-stat__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:global(.body--dark) .dataset-stat__label {
+  color: rgba(244, 238, 249, 0.65);
+}
+
+.folder-card,
+.dataset-card {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.folder-card:hover,
+.dataset-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(156, 39, 176, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.folder-name {
+  font-size: 0.9rem;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.folder-count-chip {
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.demo-pill {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  letter-spacing: 0.05em;
+}
+
 .upload-card,
 .gallery-card {
   border-radius: 12px;
@@ -707,6 +1577,16 @@ onMounted(() => {
 
 .gallery-card {
   max-width: 1200px;
+}
+
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: 12px;
+}
+
+.dataset-grid__cell {
+  min-width: 0;
 }
 
 .preview-card {
@@ -817,5 +1697,161 @@ onMounted(() => {
 .folder-select {
   width: 100%;
   max-width: 400px;
+}
+
+// ---- Identity detail card ----
+.identity-detail-card {
+  width: 460px;
+  max-width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  background: var(--vigilant-bg, #0c0218);
+  color: #f3eafa;
+}
+
+.identity-detail__header {
+  background: linear-gradient(
+    135deg,
+    var(--vigilant-purple-2, #4c065c),
+    var(--vigilant-purple-1, #6a1b9a)
+  );
+  color: #fff;
+}
+
+.identity-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.identity-stat {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.identity-stat__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.identity-stat__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(244, 238, 249, 0.55);
+}
+
+.identity-section {
+  margin-bottom: 24px;
+}
+
+.identity-section__title {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: rgba(244, 238, 249, 0.55);
+  margin-bottom: 8px;
+}
+
+.identity-thumbs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.identity-thumb {
+  aspect-ratio: 1 / 1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 599px) {
+  .identity-detail-card {
+    width: 100vw;
+  }
+}
+
+// ---- Test Recognition dialog ----
+.test-recog-card {
+  width: min(560px, 96vw);
+  background: var(--vigilant-bg, #0c0218);
+  color: #f3eafa;
+}
+
+.test-recog-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(156, 39, 176, 0.5);
+  border-radius: 10px;
+  padding: 24px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  min-height: 180px;
+}
+
+.test-recog-drop:hover {
+  background: rgba(156, 39, 176, 0.08);
+  border-color: rgba(156, 39, 176, 0.7);
+}
+
+.test-recog-drop--has {
+  padding: 8px;
+}
+
+.test-recog-drop__preview {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 8px;
+}
+
+.test-recog-result {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(156, 39, 176, 0.12);
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.test-recog-result__avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+@media (max-width: 599px) {
+  .dataset-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dataset-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .dataset-stat__value {
+    font-size: 1rem;
+  }
+  .dataset-stat__label {
+    font-size: 0.6rem;
+    letter-spacing: 0.02em;
+  }
+  // Action tile (Test recognition) gets its own full-width row below the
+  // three stats so the button stays tappable without squeezing the stats.
+  .dataset-stat--action {
+    grid-column: span 3;
+  }
+  .folder-actions {
+    flex-direction: row;
+  }
 }
 </style>
