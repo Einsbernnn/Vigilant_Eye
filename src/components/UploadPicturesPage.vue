@@ -276,6 +276,15 @@
                     <q-btn
                       dense
                       flat
+                      icon="info"
+                      color="accent"
+                      @click.stop="openIdentityDetail(folder)"
+                    >
+                      <q-tooltip>Details</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      dense
+                      flat
                       icon="edit"
                       color="accent"
                       @click.stop="showRenameDialog(folder)"
@@ -430,6 +439,133 @@
             label="Create"
             color="accent"
             @click="createFolderConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Identity detail drawer -->
+    <q-dialog
+      v-model="identityDetailOpen"
+      :maximized="$q.screen.lt.sm"
+      transition-show="slide-left"
+      transition-hide="slide-right"
+      position="right"
+    >
+      <q-card class="identity-detail-card column">
+        <q-card-section
+          class="identity-detail__header row items-center q-pa-md"
+        >
+          <q-avatar size="42px" color="accent" text-color="white">
+            <span>{{ initialsFor(detailIdentity) }}</span>
+          </q-avatar>
+          <div class="q-ml-md">
+            <div class="text-h6">{{ detailIdentity }}</div>
+            <div class="text-caption text-grey-4">
+              Identity profile
+            </div>
+          </div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup color="white" />
+        </q-card-section>
+
+        <q-scroll-area class="col">
+          <div class="q-pa-md">
+            <div class="identity-stat-row">
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityImageCount(detailIdentity) }}
+                </div>
+                <div class="identity-stat__label">Photos</div>
+              </div>
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityLastSeenLabel(detailIdentity) }}
+                </div>
+                <div class="identity-stat__label">Last seen</div>
+              </div>
+              <div class="identity-stat">
+                <div class="identity-stat__value">
+                  {{ identityQualityScore(detailIdentity) }}%
+                </div>
+                <div class="identity-stat__label">Train quality</div>
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Recent photos</div>
+              <div class="identity-thumbs">
+                <div
+                  v-for="img in recentImagesFor(detailIdentity)"
+                  :key="img.filename"
+                  class="identity-thumb"
+                  :style="{ backgroundImage: `url(${img.url})` }"
+                />
+                <div
+                  v-if="recentImagesFor(detailIdentity).length === 0"
+                  class="text-grey"
+                >
+                  No photos in this folder.
+                </div>
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Training quality</div>
+              <q-linear-progress
+                :value="identityQualityScore(detailIdentity) / 100"
+                :color="
+                  identityQualityScore(detailIdentity) >= 80
+                    ? 'positive'
+                    : identityQualityScore(detailIdentity) >= 60
+                    ? 'warning'
+                    : 'negative'
+                "
+                size="14px"
+                rounded
+              />
+              <div class="text-caption text-grey-5 q-mt-xs">
+                Synthetic score from photo count and image variety. Aim for
+                30+ photos with mixed angles for the strongest match.
+              </div>
+            </div>
+
+            <div class="identity-section">
+              <div class="identity-section__title">Activity timeline</div>
+              <q-timeline color="accent" dense layout="dense">
+                <q-timeline-entry
+                  v-for="(event, idx) in identityTimeline(detailIdentity)"
+                  :key="idx"
+                  :title="event.title"
+                  :subtitle="event.when"
+                  :icon="event.icon"
+                  :color="event.color"
+                />
+              </q-timeline>
+            </div>
+          </div>
+        </q-scroll-area>
+
+        <q-separator />
+
+        <q-card-actions class="q-pa-md">
+          <q-btn
+            outline
+            color="negative"
+            icon="delete_forever"
+            label="Delete identity"
+            no-caps
+            :disable="!canDeleteIdentity(detailIdentity)"
+            @click="confirmDeleteIdentity"
+          />
+          <q-space />
+          <q-btn
+            unelevated
+            color="accent"
+            icon="folder_open"
+            label="Open"
+            no-caps
+            @click="openIdentityFromDetail"
           />
         </q-card-actions>
       </q-card>
@@ -1109,6 +1245,152 @@ const lastTrainingLabel = computed(() => {
   return new Date(ts).toLocaleDateString();
 });
 
+// ---- Identity detail drawer -------------------------------------------------
+const identityDetailOpen = ref(false);
+const detailIdentity = ref<string>('');
+
+const openIdentityDetail = (identity: string) => {
+  detailIdentity.value = identity;
+  identityDetailOpen.value = true;
+};
+
+const initialsFor = (name: string): string => {
+  if (!name) return '?';
+  return name
+    .split(/\s+/)
+    .map((s) => s.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('');
+};
+
+const identityImageCount = (identity: string): number => {
+  if (!identity) return 0;
+  const base = findDemoImageFolder(identity)?.images.length ?? 0;
+  const extras = getDemoExtraImages(identity).length;
+  return base + extras;
+};
+
+const recentImagesFor = (identity: string) => {
+  if (!identity) return [];
+  const base = findDemoImageFolder(identity)?.images ?? [];
+  const extras = getDemoExtraImages(identity);
+  // Show the most recent uploads first if any, otherwise the first batch.
+  return [...extras, ...base].slice(0, 6);
+};
+
+// Synthetic "last seen" derived from a hash of the identity name + the demo
+// state's training timestamp. Stable per identity within a session.
+const identityLastSeenLabel = (identity: string): string => {
+  if (!identity) return 'Never';
+  const ts = demoState.lastTrainingAt;
+  if (!ts) return 'Never';
+  let h = 2166136261;
+  for (let i = 0; i < identity.length; i++) {
+    h ^= identity.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const minutesAgo = (h % 600) + 1; // 1-600 min
+  if (minutesAgo < 60) return `${minutesAgo}m ago`;
+  return `${Math.floor(minutesAgo / 60)}h ago`;
+};
+
+// Score curve: 0-9 photos -> proportional, 10-29 -> 50-80, 30+ -> 85-98
+const identityQualityScore = (identity: string): number => {
+  const n = identityImageCount(identity);
+  if (n === 0) return 0;
+  if (n < 10) return Math.round((n / 10) * 50);
+  if (n < 30) return 50 + Math.round(((n - 10) / 20) * 30);
+  return 85 + Math.min(13, Math.floor((n - 30) / 4));
+};
+
+const identityTimeline = (identity: string) => {
+  if (!identity) return [];
+  const events: {
+    title: string;
+    when: string;
+    icon: string;
+    color: string;
+  }[] = [];
+  const baseCount = findDemoImageFolder(identity)?.images.length ?? 0;
+  const extraCount = getDemoExtraImages(identity).length;
+
+  events.push({
+    title: 'Identity created',
+    when: baseCount > 0 ? 'Seed dataset' : 'Just now',
+    icon: 'person_add',
+    color: 'accent',
+  });
+  if (baseCount > 0) {
+    events.push({
+      title: `${baseCount} seed photos imported`,
+      when: 'Initial dataset',
+      icon: 'photo_library',
+      color: 'positive',
+    });
+  }
+  if (extraCount > 0) {
+    events.push({
+      title: `${extraCount} new photos added`,
+      when: 'This session',
+      icon: 'add_a_photo',
+      color: 'info',
+    });
+  }
+  if (demoState.lastTrainingAt) {
+    events.push({
+      title: 'Model trained',
+      when: lastTrainingLabel.value,
+      icon: 'model_training',
+      color: 'positive',
+    });
+  }
+  events.push({
+    title: `Last detection: ${identityLastSeenLabel(identity)}`,
+    when: 'Synthetic',
+    icon: 'visibility',
+    color: 'grey',
+  });
+  return events;
+};
+
+const canDeleteIdentity = (identity: string): boolean => {
+  // In demo mode we only allow deleting session-added (extraFolders) identities,
+  // not the static seed ones — that keeps reload behavior coherent.
+  if (settingsStore.demoMode) {
+    return demoState.extraFolders.includes(identity);
+  }
+  return true;
+};
+
+const confirmDeleteIdentity = () => {
+  const identity = detailIdentity.value;
+  if (!canDeleteIdentity(identity)) return;
+  $q.dialog({
+    title: `Delete "${identity}"?`,
+    message:
+      'This removes the identity folder and all photos in this session. The dataset only resets fully on page reload.',
+    cancel: true,
+    persistent: true,
+    color: 'negative',
+  }).onOk(() => {
+    demoState.extraFolders = demoState.extraFolders.filter(
+      (n) => n !== identity
+    );
+    delete demoState.extraImages[identity];
+    fetchFolders();
+    identityDetailOpen.value = false;
+    $q.notify({
+      type: 'positive',
+      message: `Identity "${identity}" removed.`,
+    });
+  });
+};
+
+const openIdentityFromDetail = () => {
+  identityDetailOpen.value = false;
+  openFolder(detailIdentity.value);
+};
+
 // ---- Test Recognition (demo theatre) ----------------------------------------
 const testRecognitionDialog = ref(false);
 const testFile = ref<File | null>(null);
@@ -1403,6 +1685,84 @@ const runTestRecognition = async () => {
 .folder-select {
   width: 100%;
   max-width: 400px;
+}
+
+// ---- Identity detail card ----
+.identity-detail-card {
+  width: 460px;
+  max-width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  background: var(--vigilant-bg, #0c0218);
+  color: #f3eafa;
+}
+
+.identity-detail__header {
+  background: linear-gradient(
+    135deg,
+    var(--vigilant-purple-2, #4c065c),
+    var(--vigilant-purple-1, #6a1b9a)
+  );
+  color: #fff;
+}
+
+.identity-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.identity-stat {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.identity-stat__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.identity-stat__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(244, 238, 249, 0.55);
+}
+
+.identity-section {
+  margin-bottom: 24px;
+}
+
+.identity-section__title {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: rgba(244, 238, 249, 0.55);
+  margin-bottom: 8px;
+}
+
+.identity-thumbs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.identity-thumb {
+  aspect-ratio: 1 / 1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 599px) {
+  .identity-detail-card {
+    width: 100vw;
+  }
 }
 
 // ---- Test Recognition dialog ----
