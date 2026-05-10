@@ -4,12 +4,29 @@ import type { DemoImageEntry } from './demoData';
 // In-memory, session-only mutations layered on top of the static demoData.
 // Lets demoMode "uploads" and runtime-created folders feel persistent across
 // page navigations without a real backend. Cleared on reload.
+export type ClipTag =
+  | 'visitor'
+  | 'delivery'
+  | 'family'
+  | 'important'
+  | 'review';
+
+export const CLIP_TAGS: { value: ClipTag; label: string; color: string }[] = [
+  { value: 'visitor', label: 'Visitor', color: 'blue' },
+  { value: 'delivery', label: 'Delivery', color: 'orange' },
+  { value: 'family', label: 'Family', color: 'green' },
+  { value: 'important', label: 'Important', color: 'red' },
+  { value: 'review', label: 'Review', color: 'purple' },
+];
+
 export const demoState = reactive({
   extraFolders: [] as string[],
   extraImages: {} as Record<string, DemoImageEntry[]>,
   // Epoch ms of the last simulated training run; null until first run.
   // Surfaced in the Face Recognition stats panel.
   lastTrainingAt: null as number | null,
+  // Per-clip tags keyed by clip id. Persists across folder navigation.
+  clipTags: {} as Record<string, ClipTag[]>,
 });
 
 export function resetDemoState() {
@@ -29,10 +46,24 @@ export function resetDemoState() {
   demoState.extraFolders = [];
   demoState.extraImages = {};
   demoState.lastTrainingAt = null;
+  demoState.clipTags = {};
 }
 
 export function markTrainingComplete() {
   demoState.lastTrainingAt = Date.now();
+}
+
+export function toggleClipTag(clipId: string, tag: ClipTag) {
+  const current = demoState.clipTags[clipId] ?? [];
+  if (current.includes(tag)) {
+    demoState.clipTags[clipId] = current.filter((t) => t !== tag);
+  } else {
+    demoState.clipTags[clipId] = [...current, tag];
+  }
+}
+
+export function getClipTags(clipId: string): ClipTag[] {
+  return demoState.clipTags[clipId] ?? [];
 }
 
 export function addDemoFolder(name: string) {

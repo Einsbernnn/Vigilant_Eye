@@ -246,6 +246,35 @@
           />
         </div>
 
+        <!-- Tag filter strip -->
+        <div class="library-tag-filters q-mb-md">
+          <q-icon name="label" size="sm" color="grey-5" />
+          <q-chip
+            v-for="t in CLIP_TAGS"
+            :key="t.value"
+            clickable
+            :selected="tagFilters.has(t.value)"
+            :color="tagFilters.has(t.value) ? t.color : 'grey-9'"
+            text-color="white"
+            size="sm"
+            dense
+            @click="toggleTagFilter(t.value)"
+          >
+            {{ t.label }}
+          </q-chip>
+          <q-btn
+            v-if="tagFilterCount > 0"
+            flat
+            dense
+            icon="filter_alt_off"
+            color="grey-5"
+            label="Clear"
+            no-caps
+            size="sm"
+            @click="clearTagFilters"
+          />
+        </div>
+
         <!-- Bulk action bar (only when something is selected) -->
         <div v-if="selectedVideoCount > 0" class="library-bulk-bar q-mb-md">
           <span>{{ selectedVideoCount }} selected</span>
@@ -326,9 +355,48 @@
               <div class="text-caption text-grey q-mt-xs">
                 {{ formatDate(video.timestamp) }}
               </div>
+              <div v-if="tagsFor(video.id).length" class="card-tags q-mt-xs">
+                <q-chip
+                  v-for="t in tagsFor(video.id)"
+                  :key="t"
+                  :color="tagMeta(t).color"
+                  text-color="white"
+                  size="sm"
+                  dense
+                  removable
+                  @remove="onToggleClipTag(video.id, t)"
+                >
+                  {{ tagMeta(t).label }}
+                </q-chip>
+              </div>
             </q-card-section>
 
             <q-card-actions class="card-actions">
+              <q-btn flat round dense icon="label" color="grey-6">
+                <q-tooltip>Tag clip</q-tooltip>
+                <q-menu auto-close>
+                  <q-list dense>
+                    <q-item
+                      v-for="t in CLIP_TAGS"
+                      :key="t.value"
+                      clickable
+                      @click="onToggleClipTag(video.id, t.value)"
+                    >
+                      <q-item-section avatar>
+                        <q-icon
+                          :name="
+                            tagsFor(video.id).includes(t.value)
+                              ? 'check_box'
+                              : 'check_box_outline_blank'
+                          "
+                          :color="t.color"
+                        />
+                      </q-item-section>
+                      <q-item-section>{{ t.label }}</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </q-btn>
               <q-btn
                 flat
                 round
@@ -633,6 +701,19 @@
   border-radius: 8px;
 }
 
+.library-tag-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .folder-card {
   position: relative;
   transition: transform 0.2s ease, box-shadow 0.2s ease,
@@ -841,6 +922,13 @@ import {
   findDemoVideoFolder,
   buildDemoLogs,
 } from 'src/demo/demoData';
+import {
+  CLIP_TAGS,
+  toggleClipTag,
+  getClipTags,
+  demoState,
+  type ClipTag,
+} from 'src/demo/demoState';
 
 interface Video {
   id: string;
@@ -1027,8 +1115,43 @@ const filteredVideos = computed(() => {
   });
 });
 
+// Active tag filters — empty = show all. Touch demoState.clipTags inside the
+// computed below so Vue tracks tag mutations and re-renders.
+const tagFilters = ref<Set<ClipTag>>(new Set());
+const tagFilterCount = computed(() => tagFilters.value.size);
+
+const toggleTagFilter = (tag: ClipTag) => {
+  const next = new Set(tagFilters.value);
+  if (next.has(tag)) {
+    next.delete(tag);
+  } else {
+    next.add(tag);
+  }
+  tagFilters.value = next;
+};
+
+const clearTagFilters = () => {
+  tagFilters.value = new Set();
+};
+
+const tagsFor = (clipId: string): ClipTag[] => {
+  // Read from demoState to keep reactivity tracked.
+  void demoState.clipTags;
+  return getClipTags(clipId);
+};
+
+const tagMeta = (tag: ClipTag) =>
+  CLIP_TAGS.find((t) => t.value === tag) ?? CLIP_TAGS[0];
+
 const sortedFilteredVideos = computed(() => {
-  const arr = [...filteredVideos.value];
+  const arr = filteredVideos.value.filter((video) => {
+    if (!tagFilters.value.size) return true;
+    const tags = tagsFor(video.id);
+    for (const t of tagFilters.value) {
+      if (!tags.includes(t)) return false;
+    }
+    return true;
+  });
   switch (videoSortMode.value) {
     case 'oldest':
       return arr.sort((a, b) => +a.timestamp - +b.timestamp);
@@ -1041,6 +1164,10 @@ const sortedFilteredVideos = computed(() => {
       return arr.sort((a, b) => +b.timestamp - +a.timestamp);
   }
 });
+
+const onToggleClipTag = (clipId: string, tag: ClipTag) => {
+  toggleClipTag(clipId, tag);
+};
 
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-US', {
