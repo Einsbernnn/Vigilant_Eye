@@ -1,8 +1,8 @@
 <template>
-  <q-page class="q-pa-lg">
+  <q-page class="q-pa-md q-pa-md-lg face-page">
     <q-banner
       v-if="settingsStore.demoMode"
-      class="demo-banner-strip q-mb-md"
+      class="vigilant-demo-banner q-mb-md"
       rounded
       dense
     >
@@ -15,6 +15,42 @@
       training — changes live in your browser tab and reset on reload.
       Renames and deletes are disabled.
     </q-banner>
+
+    <!-- Dataset stats -->
+    <div class="dataset-stats q-mb-md">
+      <div class="dataset-stat">
+        <q-icon name="group" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ identityCount }}</div>
+          <div class="dataset-stat__label">Identities</div>
+        </div>
+      </div>
+      <div class="dataset-stat">
+        <q-icon name="photo_library" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ totalImageCount }}</div>
+          <div class="dataset-stat__label">Total images</div>
+        </div>
+      </div>
+      <div class="dataset-stat">
+        <q-icon name="model_training" size="sm" color="accent" />
+        <div>
+          <div class="dataset-stat__value">{{ lastTrainingLabel }}</div>
+          <div class="dataset-stat__label">Last training</div>
+        </div>
+      </div>
+      <div class="dataset-stat dataset-stat--action">
+        <q-btn
+          unelevated
+          color="accent"
+          icon="psychology"
+          label="Test recognition"
+          no-caps
+          @click="testRecognitionDialog = true"
+        />
+      </div>
+    </div>
+
     <div class="column items-center q-gutter-lg">
       <q-card class="upload-card q-pa-lg shadow-5">
         <q-form @submit.prevent="handleUpload" class="column q-gutter-y-md">
@@ -208,7 +244,7 @@
             <div
               v-for="folder in folders"
               :key="folder"
-              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+              class="col-6 col-sm-4 col-md-3 col-lg-2"
             >
               <q-card
                 class="image-card folder-card cursor-pointer"
@@ -223,25 +259,38 @@
                   Demo
                 </q-badge>
                 <div class="column items-center q-pa-md">
-                  <q-icon name="folder" color="accent" size="64px" />
-                  <div class="text-center text-weight-bold q-mt-sm">
+                  <q-icon name="folder" color="accent" size="48px" />
+                  <div class="text-center text-weight-bold q-mt-sm folder-name">
                     {{ folder }}
                   </div>
-                  <div class="row q-gutter-xs q-mt-sm">
+                  <q-chip
+                    square
+                    size="sm"
+                    color="accent"
+                    text-color="white"
+                    class="q-mt-xs folder-count-chip"
+                  >
+                    {{ folderImageCount(folder) }}
+                  </q-chip>
+                  <div class="row q-gutter-xs q-mt-sm folder-actions">
                     <q-btn
                       dense
                       flat
                       icon="edit"
                       color="accent"
                       @click.stop="showRenameDialog(folder)"
-                    />
+                    >
+                      <q-tooltip>Rename</q-tooltip>
+                    </q-btn>
                     <q-btn
                       dense
                       flat
                       icon="delete"
                       color="negative"
                       @click.stop="showDeleteDialog(folder)"
-                    />
+                    >
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
                   </div>
                 </div>
               </q-card>
@@ -288,11 +337,11 @@
             </template>
             Error loading images: {{ fetchImagesError }}
           </q-banner>
-          <div v-else class="row q-col-gutter-md">
+          <div v-else class="dataset-grid">
             <div
               v-for="(image, index) in folderImages"
               :key="index"
-              class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
+              class="dataset-grid__cell"
             >
               <q-card class="image-card dataset-card">
                 <q-badge
@@ -385,11 +434,103 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Test Recognition dialog -->
+    <q-dialog
+      v-model="testRecognitionDialog"
+      :maximized="$q.screen.lt.sm"
+      @hide="resetTestRecognition"
+    >
+      <q-card class="test-recog-card">
+        <q-card-section
+          class="row items-center vigilant-demo-banner q-pa-md"
+        >
+          <q-icon name="psychology" size="sm" class="q-mr-sm" />
+          <div class="text-h6">Test recognition</div>
+          <q-space />
+          <q-btn flat round dense icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="text-caption text-grey q-mb-sm">
+            Drop or pick an image. The match against the dataset is
+            <strong>simulated</strong> — picks a deterministic identity from
+            the file's size and name, with a synthetic confidence score.
+          </div>
+
+          <div
+            class="test-recog-drop"
+            :class="{ 'test-recog-drop--has': !!testFile }"
+            @dragover.prevent
+            @drop.prevent="onTestDrop"
+            @click="testFileInput?.click()"
+          >
+            <q-img
+              v-if="testFilePreview"
+              :src="testFilePreview"
+              :ratio="1"
+              class="test-recog-drop__preview"
+            />
+            <template v-else>
+              <q-icon name="add_photo_alternate" size="48px" color="accent" />
+              <div class="text-grey text-caption q-mt-sm">
+                Drop image here or click to browse
+              </div>
+            </template>
+            <input
+              ref="testFileInput"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="onTestFileChange"
+            />
+          </div>
+
+          <div v-if="testResult" class="test-recog-result q-mt-md">
+            <div class="row items-center q-gutter-md">
+              <q-img
+                :src="testResult.matchPreviewUrl"
+                :ratio="1"
+                class="test-recog-result__avatar"
+              />
+              <div class="col">
+                <div class="text-overline text-grey-5">Best match</div>
+                <div class="text-h5 text-weight-bold">
+                  {{ testResult.identity }}
+                </div>
+                <q-linear-progress
+                  :value="testResult.confidence"
+                  color="accent"
+                  size="14px"
+                  class="q-mt-sm"
+                  rounded
+                />
+                <div class="text-caption q-mt-xs">
+                  Confidence: {{ Math.round(testResult.confidence * 100) }}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-px-md q-pb-md">
+          <q-btn flat label="Reset" color="grey-6" @click="resetTestRecognition" />
+          <q-btn
+            unelevated
+            color="accent"
+            label="Run match"
+            :loading="testRunning"
+            :disable="!testFile"
+            @click="runTestRecognition"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSettingsStore } from 'stores/settingsStore';
 import {
@@ -401,6 +542,7 @@ import {
   addDemoFolder,
   addDemoImages,
   getDemoExtraImages,
+  markTrainingComplete,
 } from 'src/demo/demoState';
 
 const $q = useQuasar();
@@ -855,6 +997,7 @@ const runDemoTraining = () => {
       isTraining.value = false;
       progress.value = null;
       demoTrainingTimer = null;
+      markTrainingComplete();
       $q.notify({
         type: 'positive',
         message: 'Model training completed! (demo)',
@@ -931,18 +1074,193 @@ watch(
 onMounted(() => {
   fetchFolders();
 });
+
+// ---- Dataset stats ----------------------------------------------------------
+const folderImageCount = (folder: string): string => {
+  const base = findDemoImageFolder(folder)?.images.length ?? 0;
+  const extra = getDemoExtraImages(folder).length;
+  const total = base + extra;
+  return `${total} ${total === 1 ? 'photo' : 'photos'}`;
+};
+
+const identityCount = computed(() => folders.value.length);
+
+const totalImageCount = computed(() => {
+  if (settingsStore.demoMode) {
+    const base = demoImageFolders.reduce((s, f) => s + f.images.length, 0);
+    const extras = Object.values(demoState.extraImages).reduce(
+      (s, arr) => s + arr.length,
+      0
+    );
+    return base + extras;
+  }
+  return '—';
+});
+
+const lastTrainingLabel = computed(() => {
+  const ts = demoState.lastTrainingAt;
+  if (!ts) return 'Never';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(ts).toLocaleDateString();
+});
+
+// ---- Test Recognition (demo theatre) ----------------------------------------
+const testRecognitionDialog = ref(false);
+const testFile = ref<File | null>(null);
+const testFilePreview = ref<string | null>(null);
+const testFileInput = ref<HTMLInputElement | null>(null);
+const testRunning = ref(false);
+const testResult = ref<{
+  identity: string;
+  confidence: number;
+  matchPreviewUrl: string;
+} | null>(null);
+
+const setTestFile = (file: File) => {
+  if (testFilePreview.value) {
+    URL.revokeObjectURL(testFilePreview.value);
+  }
+  testFile.value = file;
+  testFilePreview.value = URL.createObjectURL(file);
+  testResult.value = null;
+};
+
+const onTestFileChange = (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) setTestFile(file);
+  input.value = '';
+};
+
+const onTestDrop = (e: DragEvent) => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith('image/')) {
+    setTestFile(file);
+  }
+};
+
+const resetTestRecognition = () => {
+  if (testFilePreview.value) {
+    URL.revokeObjectURL(testFilePreview.value);
+  }
+  testFile.value = null;
+  testFilePreview.value = null;
+  testResult.value = null;
+  testRunning.value = false;
+};
+
+const runTestRecognition = async () => {
+  if (!testFile.value) return;
+  testRunning.value = true;
+  // Brief delay so the spinner state registers — feels like work.
+  await new Promise((r) => setTimeout(r, 850));
+
+  // Deterministic identity pick: hash filename + size, mod folder count.
+  const candidates = folders.value;
+  if (!candidates.length) {
+    testRunning.value = false;
+    $q.notify({
+      type: 'warning',
+      message: 'No identity folders to match against.',
+    });
+    return;
+  }
+  const seedSrc = `${testFile.value.name}:${testFile.value.size}`;
+  let h = 2166136261;
+  for (let i = 0; i < seedSrc.length; i++) {
+    h ^= seedSrc.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  const identity = candidates[h % candidates.length];
+  // Synthetic confidence in [0.85, 0.97]
+  const confidence = 0.85 + ((h >>> 16) % 1200) / 10000;
+
+  // Use the first image from that identity's dataset as the "match preview".
+  const baseImages = findDemoImageFolder(identity)?.images ?? [];
+  const extraImages = getDemoExtraImages(identity);
+  const candidateImg = baseImages[0] ?? extraImages[0];
+  const matchPreviewUrl =
+    candidateImg?.url ?? '/icons/vigilant.png';
+
+  testResult.value = { identity, confidence, matchPreviewUrl };
+  testRunning.value = false;
+};
 </script>
 
 <style lang="scss" scoped>
-.demo-banner-strip {
-  background: linear-gradient(135deg, #4c065c, #6a1b9a);
-  color: #f3eafa;
-  font-size: 0.85rem;
+.face-page {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.dataset-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dataset-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(156, 39, 176, 0.06);
+  border: 1px solid rgba(156, 39, 176, 0.18);
+}
+
+.dataset-stat--action {
+  justify-content: center;
+}
+
+.dataset-stat__value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dataset-stat__label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vigilant-text-dim, rgba(0, 0, 0, 0.55));
+}
+
+.body--dark .dataset-stat__label {
+  color: rgba(244, 238, 249, 0.65);
 }
 
 .folder-card,
 .dataset-card {
   position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.folder-card:hover,
+.dataset-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(156, 39, 176, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.folder-name {
+  font-size: 0.9rem;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.folder-count-chip {
+  font-weight: 600;
+  font-size: 0.7rem;
 }
 
 .demo-pill {
@@ -965,6 +1283,16 @@ onMounted(() => {
 
 .gallery-card {
   max-width: 1200px;
+}
+
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: 12px;
+}
+
+.dataset-grid__cell {
+  min-width: 0;
 }
 
 .preview-card {
@@ -1075,5 +1403,67 @@ onMounted(() => {
 .folder-select {
   width: 100%;
   max-width: 400px;
+}
+
+// ---- Test Recognition dialog ----
+.test-recog-card {
+  width: min(560px, 96vw);
+  background: var(--vigilant-bg, #0c0218);
+  color: #f3eafa;
+}
+
+.test-recog-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(156, 39, 176, 0.5);
+  border-radius: 10px;
+  padding: 24px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  min-height: 180px;
+}
+
+.test-recog-drop:hover {
+  background: rgba(156, 39, 176, 0.08);
+  border-color: rgba(156, 39, 176, 0.7);
+}
+
+.test-recog-drop--has {
+  padding: 8px;
+}
+
+.test-recog-drop__preview {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 8px;
+}
+
+.test-recog-result {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(156, 39, 176, 0.12);
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.test-recog-result__avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+@media (max-width: 599px) {
+  .dataset-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dataset-stat--action {
+    grid-column: span 2;
+  }
+  .folder-actions {
+    flex-direction: row;
+  }
 }
 </style>
