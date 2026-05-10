@@ -37,6 +37,19 @@
           class="row items-center q-gutter-xs q-ml-md"
         >
           <q-btn
+            v-if="pwa.state.canInstall"
+            unelevated
+            color="accent"
+            icon="install_mobile"
+            label="Install"
+            no-caps
+            dense
+            class="q-px-sm"
+            @click="onInstall"
+          >
+            <q-tooltip>Install Vigilant Eye on this device</q-tooltip>
+          </q-btn>
+          <q-btn
             round
             flat
             :icon="darkModeIcon"
@@ -69,6 +82,17 @@
           align="right"
         >
           <q-list>
+            <q-item
+              v-if="pwa.state.canInstall"
+              clickable
+              v-close-popup
+              @click="onInstall"
+            >
+              <q-item-section avatar>
+                <q-icon name="install_mobile" color="accent" />
+              </q-item-section>
+              <q-item-section>Install app</q-item-section>
+            </q-item>
             <q-item clickable v-close-popup @click="toggleDarkMode">
               <q-item-section avatar>
                 <q-icon :name="darkModeIcon" />
@@ -176,12 +200,31 @@ import {
   useKeyboardShortcuts,
   type KeyboardShortcut,
 } from 'src/composables/useKeyboardShortcuts';
+import { usePwa } from 'src/composables/usePwa';
 
 const $q = useQuasar();
 const userStore = useUserStore();
 const router = useRouter();
 const showLogoutDialog = ref(false);
 const showSettingsDialog = ref(false);
+const pwa = usePwa();
+
+const onInstall = async () => {
+  const accepted = await pwa.install();
+  if (!accepted) {
+    // Either dismissed or unavailable. Common on iOS where there's no
+    // beforeinstallprompt at all — surface a hint instead of failing silently.
+    if (!pwa.state.canInstall) {
+      $q.notify({
+        type: 'info',
+        message: 'Install via the browser menu',
+        caption:
+          'iOS: Share → Add to Home Screen. Desktop: address-bar install icon.',
+        timeout: 4000,
+      });
+    }
+  }
+};
 
 const tabs = [
   {

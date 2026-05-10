@@ -73,18 +73,8 @@
   </head>
   <body>
     <!-- quasar:entry-point -->
-    <script>
-      // Service worker registration (PWA).
-      // Wrapped in feature checks; failures are logged but never block app boot.
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker
-            .register('/sw.js')
-            .catch(function (err) {
-              console.warn('[Vigilant] SW registration failed:', err);
-            });
-        });
-      }
-    </script>
+    <!-- Service worker registration is handled by src/boot/pwa.ts so it can
+         drive Quasar's Notify plugin for the update prompt + capture
+         beforeinstallprompt for the in-app install button. -->
   </body>
 </html>

@@ -1,9 +1,18 @@
 // Vigilant Eye service worker
-// Strategy: minimal precache of the app shell + runtime cache for static
-// assets. Install / activate are kept lightweight so updates roll out fast.
-// Bump CACHE_VERSION whenever the cached shell needs to be invalidated.
+//
+// Strategy:
+//   - Install:  precache the app shell, then wait. We do NOT call skipWaiting
+//               here. The page (boot/pwa.ts) detects the waiting SW and asks
+//               the user to reload via a Notify toast; on Reload it posts a
+//               SKIP_WAITING message back, which lets us activate.
+//   - Activate: clean up old caches, then claim controlled clients so the
+//               very next navigation is served by us (no half-applied state).
+//   - Fetch:    network-first for navigations, cache-first for hashed assets,
+//               network-first-with-fallback for everything else.
+//
+// Bump CACHE_VERSION whenever cached shell entries change.
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const SHELL_CACHE = `vigilant-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `vigilant-runtime-${CACHE_VERSION}`;
 
@@ -19,11 +28,11 @@ const SHELL_FILES = [
 
 self.addEventListener('install', (event) => {
   // Install fast — don't fail install if a single asset 404s.
+  // No skipWaiting() — the page decides when to activate via SKIP_WAITING.
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
       .then((cache) => Promise.allSettled(SHELL_FILES.map((f) => cache.add(f))))
-      .then(() => self.skipWaiting())
   );
 });
 
@@ -40,6 +49,14 @@ self.addEventListener('activate', (event) => {
       )
       .then(() => self.clients.claim())
   );
+});
+
+// Page → SW handshake to apply an update. boot/pwa.ts posts this when the
+// user clicks Reload on the "new version available" notification.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 const isHashedAsset = (url) =>
