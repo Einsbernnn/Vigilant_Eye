@@ -7,7 +7,33 @@ import type { DemoImageEntry } from './demoData';
 export const demoState = reactive({
   extraFolders: [] as string[],
   extraImages: {} as Record<string, DemoImageEntry[]>,
+  // Epoch ms of the last simulated training run; null until first run.
+  // Surfaced in the Face Recognition stats panel.
+  lastTrainingAt: null as number | null,
 });
+
+export function resetDemoState() {
+  // Releases the in-memory blob URLs we created for demo uploads / snapshots
+  // before wiping them, so the browser can GC the underlying File data.
+  for (const entries of Object.values(demoState.extraImages)) {
+    for (const entry of entries) {
+      if (entry.url.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(entry.url);
+        } catch {
+          /* swallow — already revoked or invalid */
+        }
+      }
+    }
+  }
+  demoState.extraFolders = [];
+  demoState.extraImages = {};
+  demoState.lastTrainingAt = null;
+}
+
+export function markTrainingComplete() {
+  demoState.lastTrainingAt = Date.now();
+}
 
 export function addDemoFolder(name: string) {
   if (!name) return;

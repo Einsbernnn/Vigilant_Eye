@@ -1,1 +1,39 @@
 // app global css in SCSS form
+
+// Surveillance theme tokens. The accent color is exposed as a CSS variable so
+// the Settings drawer can re-skin the entire app at runtime by writing to
+// document.documentElement.style.--q-accent. Falls back to the Quasar SCSS
+// $accent default.
+:root {
+  --q-accent: #9c27b0;
+  --vigilant-bg: #0c0218;
+  --vigilant-surface: rgba(255, 255, 255, 0.04);
+  --vigilant-surface-strong: rgba(255, 255, 255, 0.08);
+  --vigilant-text-dim: rgba(244, 238, 249, 0.7);
+  --vigilant-purple-1: #6a1b9a;
+  --vigilant-purple-2: #4c065c;
+  --vigilant-pink: #c2185b;
+}
+
+body.body--dark {
+  background: var(--vigilant-bg);
+}
+
+// Make every Quasar component that reads --q-accent (via the q-color-accent
+// CSS variable Quasar generates) follow our runtime override.
+:root {
+  --q-color-accent: var(--q-accent);
+}
+
+// Shared demo-mode banner used on multiple pages (Saved Videos, Upload,
+// Snap Shot). Defining it once in a global stylesheet keeps the look in sync
+// when we tweak the gradient.
+.vigilant-demo-banner {
+  background: linear-gradient(
+    135deg,
+    var(--vigilant-purple-2),
+    var(--vigilant-purple-1)
+  );
+  color: #f3eafa;
+  font-size: 0.85rem;
+}

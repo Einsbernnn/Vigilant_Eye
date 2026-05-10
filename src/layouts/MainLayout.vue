@@ -1,69 +1,125 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <q-header elevated class="bg-dark">
-      <q-toolbar class="q-pl-xl">
-        <q-avatar square size="lg">
-          <img src="src/assets/vigilant.png" />
+      <q-toolbar class="q-pl-md q-pl-md-xl">
+        <q-avatar square size="42px">
+          <img src="/icons/vigilant.png" alt="Vigilant Eye" />
         </q-avatar>
 
-        <q-toolbar-title class="text-h5 text-weight-bold text-white">
+        <q-toolbar-title class="text-h6 text-h5-md text-weight-bold text-white">
           Vigilant Eye
         </q-toolbar-title>
 
         <q-space />
 
-        <div class="row items-center q-gutter-xl">
-          <q-tabs inline-label active-color="accent" indicator-color="accent">
+        <!-- Desktop / tablet: inline tab strip -->
+        <div v-if="$q.screen.gt.xs" class="row items-center q-gutter-md">
+          <q-tabs
+            inline-label
+            active-color="accent"
+            indicator-color="accent"
+            dense
+          >
             <q-route-tab
-              to="/live-stream"
-              label="Live Stream"
-              icon="live_tv"
-              content-class="text-white"
-            />
-            <q-route-tab
-              to="/saved-videos"
-              label="Media Library"
-              icon="video_library"
-              content-class="text-white"
-            />
-            <q-route-tab
-              to="/upload-pictures"
-              label="Face Recognition"
-              icon="camera_enhance"
-              content-class="text-white"
-            />
-            <q-route-tab
-              to="/snapshot-camera"
-              label="Snap Shot"
-              icon="photo_camera"
+              v-for="tab in tabs"
+              :key="tab.to"
+              :to="tab.to"
+              :label="tab.label"
+              :icon="tab.icon"
               content-class="text-white"
             />
           </q-tabs>
         </div>
 
-        <div class="row items-center q-gutter-sm q-ml-xl">
+        <!-- Desktop: header action buttons (dark mode, settings, logout) -->
+        <div
+          v-if="$q.screen.gt.xs"
+          class="row items-center q-gutter-xs q-ml-md"
+        >
           <q-btn
             round
             flat
             :icon="darkModeIcon"
             color="white"
             @click="toggleDarkMode"
-          />
+          >
+            <q-tooltip>Toggle theme</q-tooltip>
+          </q-btn>
           <q-btn
             round
             flat
             icon="settings"
             color="white"
             @click="openSettings"
-          />
-          <q-btn round flat icon="logout" color="white" @click="logout" />
+          >
+            <q-tooltip>Settings</q-tooltip>
+          </q-btn>
+          <q-btn round flat icon="logout" color="white" @click="logout">
+            <q-tooltip>Sign out</q-tooltip>
+          </q-btn>
         </div>
+
+        <!-- Mobile: collapse all into one menu -->
+        <q-btn-dropdown
+          v-else
+          flat
+          color="white"
+          dropdown-icon="more_vert"
+          no-caps
+          align="right"
+        >
+          <q-list>
+            <q-item clickable v-close-popup @click="toggleDarkMode">
+              <q-item-section avatar>
+                <q-icon :name="darkModeIcon" />
+              </q-item-section>
+              <q-item-section>
+                {{ $q.dark.isActive ? 'Light mode' : 'Dark mode' }}
+              </q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="openSettings">
+              <q-item-section avatar>
+                <q-icon name="settings" />
+              </q-item-section>
+              <q-item-section>Settings</q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="logout">
+              <q-item-section avatar>
+                <q-icon name="logout" />
+              </q-item-section>
+              <q-item-section>Sign out</q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
       </q-toolbar>
     </q-header>
 
-    <q-page-container>
+    <q-page-container :class="{ 'page-container--has-bottom-nav': $q.screen.lt.sm }">
       <router-view />
     </q-page-container>
+
+    <!-- Mobile bottom-nav -->
+    <q-footer
+      v-if="$q.screen.lt.sm"
+      bordered
+      class="bg-dark text-white bottom-nav"
+    >
+      <q-tabs
+        dense
+        active-color="accent"
+        indicator-color="accent"
+        narrow-indicator
+        class="text-white"
+      >
+        <q-route-tab
+          v-for="tab in tabs"
+          :key="tab.to"
+          :to="tab.to"
+          :label="tab.shortLabel || tab.label"
+          :icon="tab.icon"
+        />
+      </q-tabs>
+    </q-footer>
 
     <q-dialog v-model="showLogoutDialog" persistent>
       <q-card class="logout-dialog-card" style="width: 400px; max-width: 90vw">
@@ -104,119 +160,7 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="showSettingsDialog" persistent>
-      <q-card
-        class="settings-dialog-card"
-        style="width: 400px; max-width: 90vw"
-      >
-        <q-card-section class="bg-accent text-white q-pa-md">
-          <div class="row items-center no-wrap">
-            <q-icon name="settings" size="sm" class="q-mr-sm" />
-            <div class="text-h6">Settings</div>
-          </div>
-        </q-card-section>
-
-        <q-separator color="accent" />
-
-        <q-card-section class="q-pt-lg q-pb-md text-body1">
-          <div class="q-mb-md">
-            <q-btn
-              color="negative"
-              icon="do_not_disturb_on"
-              label="Do Not Disturb"
-              class="full-width"
-              @click="activateDoNotDisturb"
-            />
-          </div>
-          <q-input
-            v-model="settings.liveStreamUrl"
-            label="Live Stream URL"
-            filled
-          />
-          <q-input
-            v-model="settings.uploadApiUrl"
-            label="Upload API URL"
-            filled
-            class="q-mt-md"
-          />
-          <q-input
-            v-model="settings.cameraLocation"
-            label="Camera Location"
-            filled
-            class="q-mt-md"
-            prepend="Camera Location"
-          />
-          <q-select
-            v-model="settings.autoDeletion"
-            label="Auto Deletion of Footage"
-            filled
-            class="q-mt-md"
-            :options="[
-              { label: 'Every 1 week', value: '1w' },
-              { label: 'Every 15th month', value: '15m' },
-              { label: 'Every month', value: '1m' },
-              { label: 'Every year', value: '1y' },
-            ]"
-            emit-value
-            map-options
-          />
-          <q-toggle
-            v-model="settings.enableCameraLight"
-            label="Turn On Camera Light"
-            class="q-mt-md"
-            @change="toggleCameraLight"
-            :disable="settings.doNotDisturb"
-          />
-          <q-toggle
-            v-model="settings.enableCameraPanning"
-            label="Disable Camera Panning"
-            class="q-mt-md"
-            @change="toggleCameraPanning"
-            :disable="settings.doNotDisturb"
-          />
-          <q-toggle
-            v-model="settings.enableBuzzerSound"
-            label="Disable Buzzer Sound"
-            class="q-mt-md"
-            @change="toggleBuzzerSound"
-            :disable="settings.doNotDisturb"
-          />
-          <q-toggle
-            v-model="settings.enableMotionSensor"
-            label="Disable Motion Sensor"
-            class="q-mt-md"
-            @change="toggleMotionSensor"
-            :disable="settings.doNotDisturb"
-          />
-          <q-toggle
-            v-model="settings.doNotDisturb"
-            label="Do Not Disturb"
-            class="q-mt-md"
-            @change="toggleDoNotDisturb"
-            style="display: none"
-          />
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-px-md q-pb-md">
-          <q-btn
-            flat
-            label="Cancel"
-            color="grey-7"
-            class="q-px-lg"
-            v-close-popup
-            unelevated
-          />
-          <q-btn
-            label="Save"
-            color="positive"
-            class="q-px-lg"
-            @click="saveSettings"
-            push
-            unelevated
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <SettingsDrawer v-model="showSettingsDialog" />
   </q-layout>
 </template>
 
@@ -225,25 +169,40 @@ import { useQuasar } from 'quasar';
 import { useUserStore } from 'stores/userStore';
 import { useRouter } from 'vue-router';
 import { ref, computed } from 'vue';
-import { useSettingsStore } from 'stores/settingsStore';
-import { api } from 'boot/axios';
+import SettingsDrawer from 'src/components/SettingsDrawer.vue';
 
 const $q = useQuasar();
 const userStore = useUserStore();
 const router = useRouter();
 const showLogoutDialog = ref(false);
 const showSettingsDialog = ref(false);
-const settings = ref({
-  liveStreamUrl: '',
-  uploadApiUrl: '',
-  cameraLocation: '',
-  enableCameraLight: false,
-  enableCameraPanning: false,
-  enableBuzzerSound: false,
-  enableMotionSensor: false,
-  doNotDisturb: false,
-  autoDeletion: '1w', // default: every 1 week
-});
+
+const tabs = [
+  {
+    to: '/live-stream',
+    label: 'Live Stream',
+    shortLabel: 'Live',
+    icon: 'live_tv',
+  },
+  {
+    to: '/saved-videos',
+    label: 'Media Library',
+    shortLabel: 'Library',
+    icon: 'video_library',
+  },
+  {
+    to: '/upload-pictures',
+    label: 'Face Recognition',
+    shortLabel: 'Faces',
+    icon: 'camera_enhance',
+  },
+  {
+    to: '/snapshot-camera',
+    label: 'Snap Shot',
+    shortLabel: 'Snap',
+    icon: 'photo_camera',
+  },
+];
 
 const toggleDarkMode = () => {
   $q.dark.toggle();
@@ -263,97 +222,6 @@ const openSettings = () => {
   showSettingsDialog.value = true;
 };
 
-const saveSettings = () => {
-  const settingsStore = useSettingsStore();
-
-  if (settings.value.liveStreamUrl.trim()) {
-    settingsStore.updateLiveStreamUrl(settings.value.liveStreamUrl);
-  } else {
-    settings.value.liveStreamUrl = settingsStore.liveStreamUrl;
-  }
-
-  if (settings.value.uploadApiUrl.trim()) {
-    settingsStore.updateUploadApiUrl(settings.value.uploadApiUrl);
-  } else {
-    settings.value.uploadApiUrl = settingsStore.uploadApiUrl;
-  }
-
-  // Optionally, persist autoDeletion to store here if needed
-  // settingsStore.updateAutoDeletion(settings.value.autoDeletion);
-
-  showSettingsDialog.value = false;
-};
-
-const toggleCameraLight = () => {
-  const settingsStore = useSettingsStore();
-  settingsStore.updateCameraLight(settings.value.enableCameraLight);
-};
-
-const toggleCameraPanning = () => {
-  const settingsStore = useSettingsStore();
-  settingsStore.updateCameraPanning(settings.value.enableCameraPanning);
-};
-
-const toggleBuzzerSound = async () => {
-  try {
-    await api.post('/set-buzzer', {
-      enabled: settings.value.enableBuzzerSound,
-    });
-    if (!settings.value.enableBuzzerSound) {
-      $q.notify({
-        type: 'info',
-        message: 'Buzzer Sound has been disabled. Notifying backend...',
-      });
-    } else {
-      $q.notify({
-        type: 'info',
-        message: 'Buzzer Sound has been enabled. Notifying backend...',
-      });
-    }
-  } catch (error) {
-    $q.notify({ type: 'negative', message: 'Failed to update buzzer state.' });
-  }
-};
-
-const toggleMotionSensor = async () => {
-  try {
-    await api.post('/set-motion-sensor', {
-      enabled: settings.value.enableMotionSensor,
-    });
-    if (!settings.value.enableMotionSensor) {
-      $q.notify({
-        type: 'info',
-        message: 'Motion Sensor has been disabled. Notifying backend...',
-      });
-    } else {
-      $q.notify({
-        type: 'info',
-        message: 'Motion Sensor has been enabled. Notifying backend...',
-      });
-    }
-  } catch (error) {
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to update motion sensor state.',
-    });
-  }
-};
-
-const toggleDoNotDisturb = () => {
-  // No store action for Do Not Disturb
-  if (settings.value.doNotDisturb) {
-    settings.value.enableCameraLight = false;
-    settings.value.enableCameraPanning = false;
-    settings.value.enableBuzzerSound = false;
-    settings.value.enableMotionSensor = false;
-  }
-};
-
-const activateDoNotDisturb = () => {
-  settings.value.doNotDisturb = !settings.value.doNotDisturb;
-  toggleDoNotDisturb();
-};
-
 const darkModeIcon = computed(() =>
   $q.dark.isActive ? 'light_mode' : 'dark_mode'
 );
@@ -367,5 +235,15 @@ const darkModeIcon = computed(() =>
 
 .q-tab__icon {
   font-size: 1.4rem;
+}
+
+.bottom-nav {
+  background: linear-gradient(180deg, #1a1a1a 0%, #0c0c0c 100%);
+}
+
+// Reserve space at the bottom of the page so the fixed footer doesn't cover
+// the last row of content on mobile.
+.page-container--has-bottom-nav {
+  padding-bottom: 60px;
 }
 </style>

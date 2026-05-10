@@ -49,7 +49,7 @@
           <q-btn
             size="lg"
             color="accent"
-            label="Get Started"
+            label="Try Demo"
             icon-right="login"
             push
             @click="goToLogin"
