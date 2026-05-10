@@ -161,6 +161,7 @@
     </q-dialog>
 
     <SettingsDrawer v-model="showSettingsDialog" />
+    <ShortcutsHelp v-model="showShortcutsHelp" :shortcuts="shortcuts" />
   </q-layout>
 </template>
 
@@ -170,6 +171,11 @@ import { useUserStore } from 'stores/userStore';
 import { useRouter } from 'vue-router';
 import { ref, computed } from 'vue';
 import SettingsDrawer from 'src/components/SettingsDrawer.vue';
+import ShortcutsHelp from 'src/components/ShortcutsHelp.vue';
+import {
+  useKeyboardShortcuts,
+  type KeyboardShortcut,
+} from 'src/composables/useKeyboardShortcuts';
 
 const $q = useQuasar();
 const userStore = useUserStore();
@@ -225,6 +231,103 @@ const openSettings = () => {
 const darkModeIcon = computed(() =>
   $q.dark.isActive ? 'light_mode' : 'dark_mode'
 );
+
+const showShortcutsHelp = ref(false);
+
+const goTo = (path: string) => {
+  router.push(path);
+};
+
+const shortcuts: KeyboardShortcut[] = [
+  {
+    key: '?',
+    description: 'Show keyboard shortcuts',
+    group: 'General',
+    handler: () => {
+      showShortcutsHelp.value = true;
+    },
+  },
+  {
+    key: ',',
+    description: 'Open settings',
+    group: 'General',
+    handler: () => {
+      showSettingsDialog.value = true;
+    },
+  },
+  {
+    key: 'd',
+    description: 'Toggle dark mode',
+    group: 'General',
+    handler: () => $q.dark.toggle(),
+  },
+  {
+    key: 'g l',
+    description: 'Go to Live Stream',
+    group: 'Navigation',
+    handler: () => goTo('/live-stream'),
+  },
+  {
+    key: 'g m',
+    description: 'Go to Media Library',
+    group: 'Navigation',
+    handler: () => goTo('/saved-videos'),
+  },
+  {
+    key: 'g f',
+    description: 'Go to Face Recognition',
+    group: 'Navigation',
+    handler: () => goTo('/upload-pictures'),
+  },
+  {
+    key: 'g s',
+    description: 'Go to Snap Shot',
+    group: 'Navigation',
+    handler: () => goTo('/snapshot-camera'),
+  },
+];
+
+// Two-key sequence shortcuts (g + letter) need a tiny stateful matcher.
+// Track a pending leader keypress and clear it on timeout.
+let pendingLeader: { key: string; at: number } | null = null;
+const LEADER_WINDOW_MS = 800;
+
+const compoundShortcuts = shortcuts.filter((s) => s.key.includes(' '));
+const flatShortcuts: KeyboardShortcut[] = shortcuts
+  .filter((s) => !s.key.includes(' '))
+  .concat(
+    compoundShortcuts.map((s) => {
+      const [leader] = s.key.split(' ');
+      return {
+        ...s,
+        // Each compound becomes a single-key handler that activates only if
+        // the leader was pressed within the window.
+        key: s.key.split(' ').slice(-1)[0],
+        handler: (e) => {
+          if (
+            pendingLeader &&
+            pendingLeader.key === leader &&
+            Date.now() - pendingLeader.at <= LEADER_WINDOW_MS
+          ) {
+            pendingLeader = null;
+            s.handler(e);
+          }
+        },
+      } as KeyboardShortcut;
+    })
+  )
+  .concat([
+    {
+      key: 'g',
+      description: '',
+      group: '',
+      handler: () => {
+        pendingLeader = { key: 'g', at: Date.now() };
+      },
+    },
+  ]);
+
+useKeyboardShortcuts(flatShortcuts);
 </script>
 
 <style lang="scss">
