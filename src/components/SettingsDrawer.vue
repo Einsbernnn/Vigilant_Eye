@@ -214,6 +214,51 @@
             <q-icon name="storage" size="xs" class="q-mr-xs" />
             Data
           </q-item-label>
+          <q-item>
+            <q-item-section>
+              <q-item-label>Export configuration</q-item-label>
+              <q-item-label caption>
+                Saves settings + demo state as a JSON file you can re-import.
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-btn
+                outline
+                color="accent"
+                icon="file_download"
+                label="Export"
+                dense
+                no-caps
+                @click="onExportConfig"
+              />
+            </q-item-section>
+          </q-item>
+          <q-item>
+            <q-item-section>
+              <q-item-label>Import configuration</q-item-label>
+              <q-item-label caption>
+                Merges a previously exported JSON. Replaces matching keys.
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <input
+                ref="importFileInput"
+                type="file"
+                accept="application/json,.json"
+                style="display: none"
+                @change="onImportConfigFile"
+              />
+              <q-btn
+                outline
+                color="accent"
+                icon="file_upload"
+                label="Import"
+                dense
+                no-caps
+                @click="importFileInput?.click()"
+              />
+            </q-item-section>
+          </q-item>
           <q-item v-if="settingsStore.demoMode">
             <q-item-section>
               <q-item-label>Reset demo data</q-item-label>
@@ -229,13 +274,46 @@
                 icon="restart_alt"
                 label="Reset"
                 dense
+                no-caps
                 @click="onResetDemo"
               />
             </q-item-section>
           </q-item>
-          <q-item v-else>
-            <q-item-section class="text-grey">
-              Reset is only available in demo mode.
+
+          <q-item-label header class="text-uppercase text-weight-bold q-mt-sm">
+            <q-icon name="health_and_safety" size="xs" class="q-mr-xs" />
+            Diagnostics
+          </q-item-label>
+          <q-item>
+            <q-item-section>
+              <q-item-label>Connection test</q-item-label>
+              <q-item-label caption>
+                Pings the live stream and upload API URLs. 3 s timeout.
+              </q-item-label>
+              <div v-if="diagResults.length" class="diag-results q-mt-sm">
+                <div
+                  v-for="r in diagResults"
+                  :key="r.label"
+                  class="diag-row"
+                  :class="`diag-row--${r.status}`"
+                >
+                  <q-icon :name="diagIcon(r.status)" size="sm" />
+                  <span class="diag-row__label">{{ r.label }}</span>
+                  <span class="diag-row__value">{{ r.detail }}</span>
+                </div>
+              </div>
+            </q-item-section>
+            <q-item-section side>
+              <q-btn
+                outline
+                color="accent"
+                icon="network_check"
+                :label="diagRunning ? 'Testing…' : 'Run test'"
+                dense
+                no-caps
+                :loading="diagRunning"
+                @click="runDiagnostics"
+              />
             </q-item-section>
           </q-item>
         </q-list>
@@ -264,7 +342,7 @@ import {
   useSettingsStore,
   accentPresets,
 } from 'src/stores/settingsStore';
-import { resetDemoState } from 'src/demo/demoState';
+import { demoState, resetDemoState } from 'src/demo/demoState';
 import { api } from 'boot/axios';
 
 const props = defineProps<{ modelValue: boolean }>();
@@ -392,6 +470,168 @@ const onSave = () => {
   });
   model.value = false;
 };
+
+// ---- Export / import config -----------------------------------------------
+const importFileInput = ref<HTMLInputElement | null>(null);
+
+const onExportConfig = () => {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: {
+      liveStreamUrl: settingsStore.liveStreamUrl,
+      uploadApiUrl: settingsStore.uploadApiUrl,
+      enableCameraLight: settingsStore.enableCameraLight,
+      enableCameraPanning: settingsStore.enableCameraPanning,
+      demoMode: settingsStore.demoMode,
+      demoLiveStreamUrl: settingsStore.demoLiveStreamUrl,
+      notificationSound: settingsStore.notificationSound,
+      accentColor: settingsStore.accentColor,
+    },
+    demoState: {
+      extraFolders: demoState.extraFolders,
+      // Skip extraImages — they're blob: URLs that can't survive a reload.
+      lastTrainingAt: demoState.lastTrainingAt,
+      clipTags: demoState.clipTags,
+    },
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vigilant-eye-config-${new Date()
+    .toISOString()
+    .slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  $q.notify({ type: 'positive', message: 'Configuration exported.' });
+};
+
+const onImportConfigFile = async (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    if (!json || typeof json !== 'object' || !json.settings) {
+      throw new Error('Invalid configuration file');
+    }
+    const s = json.settings;
+    if (typeof s.liveStreamUrl === 'string')
+      settingsStore.updateLiveStreamUrl(s.liveStreamUrl);
+    if (typeof s.uploadApiUrl === 'string')
+      settingsStore.updateUploadApiUrl(s.uploadApiUrl);
+    if (typeof s.demoMode === 'boolean')
+      settingsStore.updateDemoMode(s.demoMode);
+    if (typeof s.demoLiveStreamUrl === 'string')
+      settingsStore.updateDemoLiveStreamUrl(s.demoLiveStreamUrl);
+    if (typeof s.notificationSound === 'boolean')
+      settingsStore.updateNotificationSound(s.notificationSound);
+    if (typeof s.accentColor === 'string') {
+      settingsStore.updateAccentColor(s.accentColor);
+    }
+    if (typeof s.enableCameraLight === 'boolean')
+      settingsStore.updateCameraLight(s.enableCameraLight);
+    if (typeof s.enableCameraPanning === 'boolean')
+      settingsStore.updateCameraPanning(s.enableCameraPanning);
+    if (json.demoState && typeof json.demoState === 'object') {
+      if (Array.isArray(json.demoState.extraFolders)) {
+        demoState.extraFolders = json.demoState.extraFolders.slice();
+      }
+      if (
+        typeof json.demoState.lastTrainingAt === 'number' ||
+        json.demoState.lastTrainingAt === null
+      ) {
+        demoState.lastTrainingAt = json.demoState.lastTrainingAt;
+      }
+      if (
+        json.demoState.clipTags &&
+        typeof json.demoState.clipTags === 'object'
+      ) {
+        demoState.clipTags = { ...json.demoState.clipTags };
+      }
+    }
+    liveUrlDraft.value = settingsStore.liveStreamUrl;
+    uploadUrlDraft.value = settingsStore.uploadApiUrl;
+    $q.notify({ type: 'positive', message: 'Configuration imported.' });
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: 'Invalid configuration file.',
+      caption: err instanceof Error ? err.message : undefined,
+    });
+  } finally {
+    input.value = '';
+  }
+};
+
+// ---- Diagnostics ----------------------------------------------------------
+type DiagStatus = 'ok' | 'fail' | 'pending';
+interface DiagResult {
+  label: string;
+  status: DiagStatus;
+  detail: string;
+}
+
+const diagRunning = ref(false);
+const diagResults = ref<DiagResult[]>([]);
+
+const diagIcon = (s: DiagStatus): string => {
+  if (s === 'ok') return 'check_circle';
+  if (s === 'fail') return 'error';
+  return 'pending';
+};
+
+const pingUrl = async (
+  label: string,
+  url: string,
+  timeoutMs = 3000
+): Promise<DiagResult> => {
+  if (!url) {
+    return { label, status: 'fail', detail: 'No URL set' };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = performance.now();
+  try {
+    // mode=no-cors keeps the request opaque (we get back an opaque response
+    // with status 0). For diagnostics we only care that the network reached
+    // the host without a network/timeout error.
+    await fetch(url, { method: 'GET', mode: 'no-cors', signal: controller.signal });
+    const ms = Math.round(performance.now() - start);
+    return { label, status: 'ok', detail: `reachable · ${ms} ms` };
+  } catch (err) {
+    if (controller.signal.aborted) {
+      return { label, status: 'fail', detail: `timed out after ${timeoutMs} ms` };
+    }
+    return {
+      label,
+      status: 'fail',
+      detail: err instanceof Error ? err.message : 'unreachable',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const runDiagnostics = async () => {
+  diagRunning.value = true;
+  diagResults.value = [
+    { label: 'Live stream URL', status: 'pending', detail: 'checking…' },
+    { label: 'Upload API URL', status: 'pending', detail: 'checking…' },
+  ];
+  const [r1, r2] = await Promise.all([
+    pingUrl('Live stream URL', settingsStore.liveStreamUrl),
+    pingUrl('Upload API URL', settingsStore.uploadApiUrl),
+  ]);
+  diagResults.value = [r1, r2];
+  diagRunning.value = false;
+};
 </script>
 
 <style lang="scss" scoped>
@@ -442,6 +682,44 @@ const onSave = () => {
 .accent-swatch--active {
   border-color: #fff;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+.diag-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diag-row {
+  display: grid;
+  grid-template-columns: 24px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.8rem;
+}
+
+.diag-row__label {
+  font-weight: 500;
+}
+
+.diag-row__value {
+  text-align: right;
+  color: rgba(244, 238, 249, 0.65);
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.diag-row--ok :deep(.q-icon) {
+  color: #21ba45;
+}
+.diag-row--fail :deep(.q-icon) {
+  color: #ff5252;
+}
+.diag-row--pending :deep(.q-icon) {
+  color: rgba(244, 238, 249, 0.5);
 }
 
 @media (max-width: 599px) {
