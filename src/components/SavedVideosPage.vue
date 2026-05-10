@@ -1,8 +1,8 @@
 <template>
-  <q-page class="q-px-xl q-pt-xl">
+  <q-page class="q-px-md q-px-md-xl q-pt-md q-pt-md-xl">
     <q-banner
       v-if="settingsStore.demoMode"
-      class="demo-banner-strip q-mb-md"
+      class="vigilant-demo-banner q-mb-md"
       rounded
       dense
     >
@@ -10,128 +10,281 @@
         <q-icon name="science" color="white" />
       </template>
       <span class="text-weight-medium">Demo data:</span>
-      these folders, clips, thumbnails, and detection logs are placeholder
-      content for showcasing the UI — no real footage is stored on this
-      deployment.
+      folders, clips, thumbnails, and detection logs are placeholder content.
+      No real footage is stored on this deployment.
     </q-banner>
-    <div class="q-mb-md text-h6 text-center">
-      {{ currentDateTime }}
-    </div>
+
+    <div class="library-clock q-mb-md">{{ currentDateTime }}</div>
+
     <div class="gallery-wrapper">
+      <!-- Folder index view -->
       <div v-if="!selectedFolder">
-        <div class="row q-col-gutter-md items-center">
-          <div class="row items-center no-wrap">
-            <q-btn
-              color="primary"
-              label="Refresh"
-              icon="refresh"
-              @click="refreshFolders"
-              class="q-ml-sm"
-              push
-            />
-            <q-btn
-              color="primary"
-              label="Sort"
-              icon="sort"
-              @click="sortFolders"
-              class="q-ml-sm"
-              push
-            />
+        <!-- Stats strip -->
+        <div class="library-stats q-mb-md">
+          <div class="library-stat">
+            <q-icon name="folder" size="sm" color="accent" />
+            <div>
+              <div class="library-stat__value">{{ folders.length }}</div>
+              <div class="library-stat__label">Folders</div>
+            </div>
+          </div>
+          <div class="library-stat">
+            <q-icon name="movie" size="sm" color="accent" />
+            <div>
+              <div class="library-stat__value">{{ totalClipCount }}</div>
+              <div class="library-stat__label">Clips</div>
+            </div>
+          </div>
+          <div class="library-stat">
+            <q-icon name="schedule" size="sm" color="accent" />
+            <div>
+              <div class="library-stat__value">
+                {{ totalDurationLabel }}
+              </div>
+              <div class="library-stat__label">Total runtime</div>
+            </div>
           </div>
         </div>
-        <div
-          v-for="folder in filteredFolders"
-          :key="folder"
-          class="col-xs-6 col-sm-4 col-md-3 col-lg-2"
-        >
-          <q-card
-            class="image-card folder-card cursor-pointer"
-            @click="selectFolder(folder)"
+
+        <!-- Toolbar -->
+        <div class="library-toolbar q-mb-md">
+          <q-input
+            v-model="folderSearchQuery"
+            dense
+            outlined
+            placeholder="Search folders"
+            class="library-search"
+            clearable
           >
-            <q-badge
-              v-if="settingsStore.demoMode"
-              color="purple"
-              text-color="white"
-              class="demo-pill"
+            <template v-slot:prepend>
+              <q-icon name="search" />
+            </template>
+          </q-input>
+          <q-btn
+            color="primary"
+            label="Refresh"
+            icon="refresh"
+            unelevated
+            @click="refreshFolders"
+          />
+          <q-btn-dropdown
+            color="primary"
+            outline
+            icon="sort"
+            :label="folderSortLabel"
+            no-caps
+          >
+            <q-list>
+              <q-item
+                v-for="opt in folderSortOptions"
+                :key="opt.value"
+                clickable
+                v-close-popup
+                @click="folderSortMode = opt.value"
+              >
+                <q-item-section>{{ opt.label }}</q-item-section>
+                <q-item-section v-if="folderSortMode === opt.value" side>
+                  <q-icon name="check" color="accent" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+        </div>
+
+        <!-- Folder grid -->
+        <div class="row q-col-gutter-md">
+          <div
+            v-for="folder in filteredFolders"
+            :key="folder"
+            class="col-6 col-sm-4 col-md-3 col-lg-2"
+          >
+            <q-card
+              class="image-card folder-card cursor-pointer"
+              @click="selectFolder(folder)"
             >
-              Demo
-            </q-badge>
-            <div class="column items-center q-pa-md">
-              <q-icon name="folder" color="accent" size="64px" />
-              <div class="text-center text-weight-bold q-mt-sm">
-                {{ folder }}
-                <div class="text-caption text-grey-6">
+              <q-badge
+                v-if="settingsStore.demoMode"
+                color="purple"
+                text-color="white"
+                class="demo-pill"
+              >
+                Demo
+              </q-badge>
+              <div class="column items-center q-pa-md">
+                <q-icon name="folder" color="accent" size="48px" />
+                <div class="text-center text-weight-bold q-mt-sm folder-name">
+                  {{ folder }}
+                </div>
+                <div class="text-caption text-grey-6 q-mt-xs">
                   {{
                     formatDate(parseDateFromFolderName(folder) || new Date())
                   }}
                 </div>
-              </div>
-              <div class="row q-gutter-xs q-mt-sm">
-                <q-btn
-                  dense
-                  flat
-                  icon="edit"
-                  color="primary"
-                  @click.stop="showRenameDialog(folder)"
-                />
-                <q-btn
-                  dense
-                  flat
-                  icon="delete"
-                  color="negative"
-                  @click.stop="showDeleteDialog(folder)"
-                />
-                <q-btn
-                  dense
-                  flat
-                  icon="download"
+                <q-chip
+                  square
+                  size="sm"
                   color="accent"
-                  @click.stop="downloadFolder(folder)"
-                />
+                  text-color="white"
+                  class="q-mt-xs folder-count-chip"
+                >
+                  {{ folderClipCount(folder) }}
+                </q-chip>
+                <div class="row q-gutter-xs q-mt-sm">
+                  <q-btn
+                    dense
+                    flat
+                    icon="edit"
+                    color="primary"
+                    @click.stop="showRenameDialog(folder)"
+                  >
+                    <q-tooltip>Rename</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    dense
+                    flat
+                    icon="delete"
+                    color="negative"
+                    @click.stop="showDeleteDialog(folder)"
+                  >
+                    <q-tooltip>Delete</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    dense
+                    flat
+                    icon="download"
+                    color="accent"
+                    @click.stop="downloadFolder(folder)"
+                  >
+                    <q-tooltip>Download</q-tooltip>
+                  </q-btn>
+                </div>
               </div>
-            </div>
-          </q-card>
+            </q-card>
+          </div>
         </div>
         <div
-          v-if="!folders.length"
+          v-if="!filteredFolders.length"
           class="text-grey text-center q-pa-lg full-width"
         >
-          No folders found
+          {{ folderSearchQuery ? 'No matches.' : 'No folders found.' }}
         </div>
       </div>
+
+      <!-- In-folder view -->
       <div v-else>
-        <div class="row items-center q-mb-md">
+        <div class="library-folder-toolbar q-mb-md">
           <q-btn
             flat
             icon="arrow_back"
             color="accent"
             @click="clearSelectedFolder"
-            label="Back to Folders"
+            label="Back"
+            no-caps
           />
-          <div class="q-ml-md text-h6">{{ selectedFolder }}</div>
+          <div class="text-h6 ellipsis">{{ selectedFolder }}</div>
           <q-space />
+          <q-input
+            v-model="searchQuery"
+            dense
+            outlined
+            placeholder="Search clips"
+            clearable
+            class="library-search-clips"
+          >
+            <template v-slot:prepend>
+              <q-icon name="search" />
+            </template>
+          </q-input>
+          <q-btn-dropdown
+            color="primary"
+            outline
+            icon="sort"
+            :label="videoSortLabel"
+            no-caps
+          >
+            <q-list>
+              <q-item
+                v-for="opt in videoSortOptions"
+                :key="opt.value"
+                clickable
+                v-close-popup
+                @click="videoSortMode = opt.value"
+              >
+                <q-item-section>{{ opt.label }}</q-item-section>
+                <q-item-section v-if="videoSortMode === opt.value" side>
+                  <q-icon name="check" color="accent" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+          <q-btn-toggle
+            v-model="viewMode"
+            no-caps
+            unelevated
+            toggle-color="accent"
+            :options="[
+              { value: 'grid', icon: 'view_module', tooltip: 'Grid view' },
+              { value: 'list', icon: 'view_list', tooltip: 'List view' },
+            ]"
+          />
           <input
+            ref="videoUploadInput"
             type="file"
             multiple
             accept="video/*"
+            style="display: none"
             @change="handleVideoFiles"
           />
           <q-btn
             color="accent"
+            unelevated
             icon="cloud_upload"
-            label="Upload Video"
-            @click="uploadVideos"
+            label="Upload"
+            no-caps
             :loading="isUploading"
+            @click="triggerVideoUpload"
           />
         </div>
-        <div class="video-grid">
+
+        <!-- Bulk action bar (only when something is selected) -->
+        <div v-if="selectedVideoCount > 0" class="library-bulk-bar q-mb-md">
+          <span>{{ selectedVideoCount }} selected</span>
+          <q-space />
+          <q-btn
+            flat
+            icon="close"
+            label="Clear"
+            color="grey-3"
+            no-caps
+            @click="clearSelection"
+          />
+          <q-btn
+            outline
+            icon="delete"
+            label="Delete"
+            color="negative"
+            no-caps
+            @click="bulkDeleteSelected"
+          />
+        </div>
+
+        <!-- Grid view -->
+        <div v-if="viewMode === 'grid'" class="video-grid">
           <q-card
-            v-for="video in filteredVideos"
+            v-for="video in sortedFilteredVideos"
             :key="video.id"
             class="video-card"
+            :class="{ 'video-card--selected': selectedVideoIds.has(video.id) }"
             v-ripple
           >
             <div class="thumbnail-wrapper">
+              <q-checkbox
+                :model-value="selectedVideoIds.has(video.id)"
+                @update:model-value="toggleVideoSelection(video.id)"
+                color="accent"
+                class="select-checkbox"
+                dark
+              />
               <q-img
                 :src="getVideoThumbnail(video)"
                 :ratio="16 / 9"
@@ -152,8 +305,8 @@
               <q-badge color="dark" class="duration-badge">
                 {{
                   video.duration > 0
-                    ? formatDuration(video.duration)
-                    : 'Loading...'
+                    ? formatShortDuration(video.duration)
+                    : 'Loading…'
                 }}
               </q-badge>
               <q-badge
@@ -167,7 +320,9 @@
             </div>
 
             <q-card-section class="card-content">
-              <div class="text-h6 text-weight-bold">{{ video.title }}</div>
+              <div class="text-subtitle1 text-weight-bold ellipsis">
+                {{ video.title }}
+              </div>
               <div class="text-caption text-grey q-mt-xs">
                 {{ formatDate(video.timestamp) }}
               </div>
@@ -177,6 +332,7 @@
               <q-btn
                 flat
                 round
+                dense
                 icon="delete"
                 color="grey-6"
                 @click="deleteVideo(video)"
@@ -184,14 +340,101 @@
               <q-btn
                 flat
                 round
+                dense
                 icon="download"
                 color="grey-6"
                 @click="downloadVideo(video)"
               />
               <q-space />
-              <q-btn flat round icon="info" color="grey-6" />
+              <q-btn
+                flat
+                round
+                dense
+                icon="play_arrow"
+                color="accent"
+                @click="playVideo(video)"
+              />
             </q-card-actions>
           </q-card>
+        </div>
+
+        <!-- List view -->
+        <q-list v-else separator class="library-list">
+          <q-item
+            v-for="video in sortedFilteredVideos"
+            :key="video.id"
+            clickable
+            v-ripple
+            @click="playVideo(video)"
+          >
+            <q-item-section avatar>
+              <q-checkbox
+                :model-value="selectedVideoIds.has(video.id)"
+                @update:model-value="toggleVideoSelection(video.id)"
+                @click.stop
+                color="accent"
+              />
+            </q-item-section>
+            <q-item-section avatar>
+              <q-img
+                :src="getVideoThumbnail(video)"
+                :ratio="16 / 9"
+                style="width: 96px; border-radius: 6px"
+              />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label class="text-weight-bold">
+                {{ video.title }}
+              </q-item-label>
+              <q-item-label caption>
+                {{ formatDate(video.timestamp) }}
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-badge color="dark">
+                {{
+                  video.duration > 0
+                    ? formatShortDuration(video.duration)
+                    : '—'
+                }}
+              </q-badge>
+            </q-item-section>
+            <q-item-section side>
+              <div class="row q-gutter-xs">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="play_arrow"
+                  color="accent"
+                  @click.stop="playVideo(video)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="download"
+                  color="grey-6"
+                  @click.stop="downloadVideo(video)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="delete"
+                  color="grey-6"
+                  @click.stop="deleteVideo(video)"
+                />
+              </div>
+            </q-item-section>
+          </q-item>
+        </q-list>
+
+        <div
+          v-if="!sortedFilteredVideos.length"
+          class="text-grey text-center q-pa-lg"
+        >
+          No clips in this folder.
         </div>
       </div>
     </div>
@@ -232,54 +475,61 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-    <q-dialog v-model="videoDialog" persistent>
-      <q-card style="display: flex; flex-direction: row; min-width: 900px">
-        <q-card-section style="flex: 2 1 0; min-width: 0">
-          <div class="text-h6 row items-center q-gutter-sm">
-            <span>Playing Video</span>
-            <q-badge
-              v-if="settingsStore.demoMode"
-              color="purple"
-              text-color="white"
-            >
-              Demo clip
-            </q-badge>
+    <q-dialog
+      v-model="videoDialog"
+      persistent
+      :maximized="$q.screen.lt.sm"
+    >
+      <q-card class="playback-card">
+        <div class="playback-card__body">
+          <div class="playback-card__video">
+            <div class="row items-center q-px-md q-pt-md q-pb-sm">
+              <span class="text-h6">Playing</span>
+              <q-badge
+                v-if="settingsStore.demoMode"
+                color="purple"
+                text-color="white"
+                class="q-ml-sm"
+              >
+                Demo clip
+              </q-badge>
+              <q-space />
+              <q-btn
+                flat
+                round
+                dense
+                icon="close"
+                v-close-popup
+                color="grey-6"
+              />
+            </div>
+            <video
+              v-if="videoToPlay"
+              ref="playbackVideoEl"
+              :src="getVideoUrl(videoToPlay)"
+              controls
+              autoplay
+              class="playback-video"
+              @error="onVideoError"
+            ></video>
+            <div v-if="videoError" class="text-negative q-px-md q-pb-sm">
+              Failed to load video.
+            </div>
           </div>
-          <video
-            v-if="videoToPlay"
-            ref="playbackVideoEl"
-            :src="getVideoUrl(videoToPlay)"
-            controls
-            autoplay
-            style="width: 100%"
-            @error="onVideoError"
-          ></video>
-          <div v-if="videoError" class="text-negative q-mt-md">
-            Failed to load video.
-          </div>
-        </q-card-section>
-        <q-card-section
-          style="
-            flex: 1 1 0;
-            min-width: 300px;
-            border-left: 1px solid #eee;
-            max-width: 350px;
-            overflow-y: auto;
-          "
-        >
-          <div class="text-h6 q-mb-md">Detection Logs</div>
-          <div v-if="logs.length === 0" class="text-grey q-mb-md">
-            No logs found for this video.
-          </div>
-          <div v-else class="logs-scrollable">
-            <q-list>
+          <div class="playback-card__logs">
+            <div class="text-subtitle1 q-mb-sm">Detection Logs</div>
+            <div v-if="logs.length === 0" class="text-grey">
+              No detection events recorded for this clip.
+            </div>
+            <q-list v-else dense class="logs-scrollable">
               <q-item
                 v-for="(log, idx) in logs"
                 :key="idx"
                 clickable
+                v-ripple
                 @click="seekToTimestamp(log.timestamp)"
               >
-                <q-item-section>
+                <q-item-section avatar>
                   <q-badge
                     :color="
                       log.event_type === 'motion'
@@ -288,25 +538,29 @@
                         ? 'negative'
                         : 'positive'
                     "
-                    class="q-mr-sm"
+                    class="event-badge"
                   >
                     {{ log.event_type }}
                   </q-badge>
-                  <span>{{ formatDuration(log.timestamp) }}</span>
-                  <span v-if="log.extra && log.extra.name">
-                    - {{ log.extra.name }}
-                  </span>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-mono">
+                    {{ formatShortDuration(log.timestamp) }}
+                  </q-item-label>
+                  <q-item-label
+                    v-if="log.extra && log.extra.name"
+                    caption
+                  >
+                    {{ log.extra.name }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-icon name="play_arrow" color="accent" size="sm" />
                 </q-item-section>
               </q-item>
             </q-list>
           </div>
-        </q-card-section>
-        <q-card-actions
-          align="right"
-          style="position: absolute; bottom: 0; right: 0"
-        >
-          <q-btn flat label="Close" v-close-popup />
-        </q-card-actions>
+        </div>
       </q-card>
     </q-dialog>
   </q-page>
@@ -318,14 +572,89 @@
   margin: 0 auto;
 }
 
-.demo-banner-strip {
-  background: linear-gradient(135deg, #4c065c, #6a1b9a);
-  color: #f3eafa;
-  font-size: 0.85rem;
+.library-clock {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--vigilant-text-dim, rgba(244, 238, 249, 0.7));
+  letter-spacing: 0.02em;
+}
+
+.library-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.library-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.library-stat__value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.library-stat__label {
+  font-size: 0.75rem;
+  color: var(--vigilant-text-dim, rgba(244, 238, 249, 0.7));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.library-toolbar,
+.library-folder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.library-search,
+.library-search-clips {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 360px;
+}
+
+.library-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(156, 39, 176, 0.18);
+  border: 1px solid rgba(156, 39, 176, 0.4);
+  border-radius: 8px;
 }
 
 .folder-card {
   position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.folder-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(156, 39, 176, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.folder-name {
+  font-size: 0.9rem;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.folder-count-chip {
+  font-weight: 600;
 }
 
 .demo-pill {
@@ -343,40 +672,35 @@
   left: auto;
 }
 
-.header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 20px;
 }
 
-.search-input {
-  flex-grow: 1;
-  max-width: 400px;
-}
-
-.date-picker {
-  flex-grow: 1;
-  max-width: 400px;
-}
-
-.video-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-}
-
 .video-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, outline 0.2s ease;
   border-radius: 12px;
+  outline: 2px solid transparent;
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
 
     .hover-actions {
       opacity: 1;
     }
+    .select-checkbox {
+      opacity: 1;
+    }
+  }
+}
+
+.video-card--selected {
+  outline-color: var(--q-accent, #9c27b0);
+
+  .select-checkbox {
+    opacity: 1;
   }
 }
 
@@ -388,6 +712,18 @@
   border-radius: 12px 12px 0 0;
 }
 
+.select-checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
 .hover-actions {
   background: rgba(0, 0, 0, 0.5);
   opacity: 0;
@@ -395,7 +731,7 @@
 }
 
 .play-btn {
-  transform: scale(1.5);
+  transform: scale(1.4);
 }
 
 .duration-badge {
@@ -407,24 +743,92 @@
 }
 
 .card-content {
-  padding: 16px;
+  padding: 12px 16px 8px;
 }
 
 .card-actions {
-  padding: 8px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 12px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.date-picker {
-  max-width: 300px;
-  flex-grow: 1;
+.library-list {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+}
+
+.text-mono {
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.event-badge {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.playback-card {
+  width: min(1100px, 96vw);
+  max-width: 100%;
+}
+
+.playback-card__body {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.playback-card__video {
+  flex: 2 1 480px;
+  min-width: 0;
+}
+
+.playback-card__logs {
+  flex: 1 1 280px;
+  min-width: 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.body--dark .playback-card__logs {
+  border-left-color: rgba(255, 255, 255, 0.08);
+}
+
+.playback-video {
+  width: 100%;
+  display: block;
+  background: #000;
+  max-height: 70vh;
 }
 
 .logs-scrollable {
-  max-height: 350px;
-  min-height: 120px;
+  max-height: 60vh;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+@media (max-width: 599px) {
+  .library-stats {
+    grid-template-columns: 1fr;
+  }
+  .library-toolbar,
+  .library-folder-toolbar {
+    gap: 8px;
+  }
+  .library-search,
+  .library-search-clips {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+  .playback-card__logs {
+    flex-basis: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    max-height: 40vh;
+  }
+  .playback-video {
+    max-height: 50vh;
+  }
 }
 </style>
 
@@ -481,6 +885,18 @@ const videoError = ref(false);
 const playbackVideoEl = ref<HTMLVideoElement | null>(null);
 
 const folderSearchQuery = ref('');
+
+type FolderSortMode = 'newest' | 'oldest' | 'name';
+const folderSortOptions: { value: FolderSortMode; label: string }[] = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'name', label: 'Name (A → Z)' },
+];
+const folderSortMode = ref<FolderSortMode>('newest');
+const folderSortLabel = computed(
+  () => folderSortOptions.find((o) => o.value === folderSortMode.value)?.label ?? 'Sort'
+);
+
 const filteredFolders = computed(() => {
   const filtered = folders.value.filter((folder) => {
     const matchesSearchQuery = folder
@@ -496,20 +912,51 @@ const filteredFolders = computed(() => {
 
     return matchesSearchQuery && matchesDateRange;
   });
-  // Sort by date (ascending, oldest first), fallback to alphabetical
   return filtered.sort((a, b) => {
+    if (folderSortMode.value === 'name') return a.localeCompare(b);
     const dateA = parseDateFromFolderName(a);
     const dateB = parseDateFromFolderName(b);
     if (dateA && dateB) {
-      return dateA.getTime() - dateB.getTime();
-    } else if (dateA) {
-      return -1;
-    } else if (dateB) {
-      return 1;
-    } else {
-      return a.localeCompare(b);
+      return folderSortMode.value === 'newest'
+        ? dateB.getTime() - dateA.getTime()
+        : dateA.getTime() - dateB.getTime();
     }
+    if (dateA) return -1;
+    if (dateB) return 1;
+    return a.localeCompare(b);
   });
+});
+
+// Cached count per folder so the chip doesn't make every render thrash. In
+// demo mode we read the static folder length; in real mode we don't have it
+// without a fetch, so fall back to a dash.
+const folderClipCount = (folder: string): string => {
+  if (settingsStore.demoMode) {
+    const match = demoVideoFolders.find((f) => f.name === folder);
+    if (!match) return '—';
+    const n = match.videos.length;
+    return `${n} ${n === 1 ? 'clip' : 'clips'}`;
+  }
+  return '—';
+};
+
+const totalClipCount = computed(() => {
+  if (settingsStore.demoMode) {
+    return demoVideoFolders.reduce((sum, f) => sum + f.videos.length, 0);
+  }
+  return folders.value.length; // best-effort: number of folders as a stand-in
+});
+
+const totalDurationLabel = computed(() => {
+  // Demo clips are short samples; we approximate the total runtime as
+  // 12 s per clip so the strip shows something meaningful in demo mode.
+  if (settingsStore.demoMode) {
+    const seconds = totalClipCount.value * 12;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${String(s).padStart(2, '0')}s`;
+  }
+  return '—';
 });
 
 watch(dateRangeString, (newValue) => {
@@ -522,6 +969,48 @@ watch(dateRangeString, (newValue) => {
 });
 
 const videos = ref<Video[]>([]);
+
+type VideoSortMode = 'newest' | 'oldest' | 'longest' | 'shortest';
+const videoSortOptions: { value: VideoSortMode; label: string }[] = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'longest', label: 'Longest duration' },
+  { value: 'shortest', label: 'Shortest duration' },
+];
+const videoSortMode = ref<VideoSortMode>('newest');
+const videoSortLabel = computed(
+  () => videoSortOptions.find((o) => o.value === videoSortMode.value)?.label ?? 'Sort'
+);
+
+const viewMode = ref<'grid' | 'list'>('grid');
+
+// Bulk selection — Set of Video.id, persists per session.
+const selectedVideoIds = ref<Set<string>>(new Set());
+const selectedVideoCount = computed(() => selectedVideoIds.value.size);
+const toggleVideoSelection = (id: string) => {
+  const next = new Set(selectedVideoIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  selectedVideoIds.value = next;
+};
+const clearSelection = () => {
+  selectedVideoIds.value = new Set();
+};
+const bulkDeleteSelected = () => {
+  const ids = selectedVideoIds.value;
+  if (ids.size === 0) return;
+  videos.value = videos.value.filter((v) => !ids.has(v.id));
+  $q.notify({
+    type: 'positive',
+    message: `Removed ${ids.size} clip${ids.size === 1 ? '' : 's'} from view${
+      settingsStore.demoMode ? ' (demo)' : ''
+    }.`,
+  });
+  clearSelection();
+};
 
 const filteredVideos = computed(() => {
   return videos.value.filter((video) => {
@@ -538,6 +1027,21 @@ const filteredVideos = computed(() => {
   });
 });
 
+const sortedFilteredVideos = computed(() => {
+  const arr = [...filteredVideos.value];
+  switch (videoSortMode.value) {
+    case 'oldest':
+      return arr.sort((a, b) => +a.timestamp - +b.timestamp);
+    case 'longest':
+      return arr.sort((a, b) => b.duration - a.duration);
+    case 'shortest':
+      return arr.sort((a, b) => a.duration - b.duration);
+    case 'newest':
+    default:
+      return arr.sort((a, b) => +b.timestamp - +a.timestamp);
+  }
+});
+
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
@@ -545,18 +1049,17 @@ const formatDate = (date: Date) => {
   }).format(date);
 };
 
-const formatDuration = (seconds: number) => {
-  if (!isFinite(seconds) || seconds < 0) return '00:00:00.000';
+// Compact mm:ss[.t] used in cards and the detection log list. Falls back to
+// h:mm:ss for long clips.
+const formatShortDuration = (seconds: number) => {
+  if (!isFinite(seconds) || seconds < 0) return '0:00';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  const millis = Math.floor((seconds - Math.floor(seconds)) * 1000);
-  return (
-    `${hours.toString().padStart(2, '0')}:` +
-    `${minutes.toString().padStart(2, '0')}:` +
-    `${secs.toString().padStart(2, '0')}.` +
-    `${millis.toString().padStart(3, '0')}`
-  );
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
 };
 
 const getVideoUrl = (video: Video) => video.url;
@@ -583,14 +1086,33 @@ const downloadVideo = (video: Video) => {
 };
 
 const deleteVideo = (video: Video) => {
-  console.log('Deleting:', video);
+  videos.value = videos.value.filter((v) => v.id !== video.id);
+  if (selectedVideoIds.value.has(video.id)) {
+    const next = new Set(selectedVideoIds.value);
+    next.delete(video.id);
+    selectedVideoIds.value = next;
+  }
+  $q.notify({
+    type: 'positive',
+    message: `Removed "${video.title}" from view${
+      settingsStore.demoMode ? ' (demo)' : ''
+    }.`,
+  });
 };
 
-const handleVideoFiles = (event: Event) => {
+const videoUploadInput = ref<HTMLInputElement | null>(null);
+
+const triggerVideoUpload = () => {
+  videoUploadInput.value?.click();
+};
+
+const handleVideoFiles = async (event: Event) => {
   const input = event.target as HTMLInputElement;
-  if (input.files) {
-    videoFiles.value = Array.from(input.files);
-  }
+  if (!input.files || !input.files.length) return;
+  videoFiles.value = Array.from(input.files);
+  await uploadVideos();
+  // Reset the input so the same file selected twice still fires change.
+  input.value = '';
 };
 
 const uploadVideos = async () => {
@@ -799,6 +1321,7 @@ const fetchVideosInFolder = async () => {
 
 const selectFolder = (folder: string) => {
   selectedFolder.value = folder;
+  clearSelection();
   fetchVideosInFolder();
 };
 
@@ -806,6 +1329,7 @@ const clearSelectedFolder = () => {
   selectedFolder.value = '';
   videoFiles.value = [];
   videos.value = [];
+  clearSelection();
 };
 
 function showRenameDialog(folder: string) {
@@ -918,28 +1442,6 @@ function refreshFolders() {
   $q.notify({
     type: 'positive',
     message: 'Folders refreshed!',
-    icon: 'check_circle',
-  });
-}
-
-function sortFolders() {
-  folders.value.sort((a, b) => {
-    const dateA = parseDateFromFolderName(a);
-    const dateB = parseDateFromFolderName(b);
-    if (dateA && dateB) {
-      // Ascending: oldest first
-      return dateA.getTime() - dateB.getTime();
-    } else if (dateA) {
-      return -1;
-    } else if (dateB) {
-      return 1;
-    } else {
-      return a.localeCompare(b);
-    }
-  });
-  $q.notify({
-    type: 'positive',
-    message: 'Folders sorted by date!',
     icon: 'check_circle',
   });
 }
