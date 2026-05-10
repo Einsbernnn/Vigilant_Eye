@@ -9,8 +9,16 @@
     <meta name="msapplication-tap-highlight" content="no" />
     <meta
       name="viewport"
-      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width<% if (ctx.mode.cordova || ctx.mode.capacitor) { %>, viewport-fit=cover<% } %>"
+      content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, viewport-fit=cover<% if (ctx.mode.cordova || ctx.mode.capacitor) { %><% } %>"
     />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#4c065c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vigilant" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <link
       rel="icon"
@@ -37,8 +45,46 @@
       href="icons/favicon-16x16.png"
     />
     <link rel="icon" type="image/ico" href="icons/favicon-16x16.png" />
+
+    <style>
+      /* Zoom guards.
+         - touch-action: manipulation kills the iOS double-tap zoom (the
+           viewport meta only blocks pinch-zoom).
+         - text-size-adjust prevents Mobile Safari and Chrome from auto-
+           bumping font sizes on rotation / standalone PWA launches.
+         - -webkit-tap-highlight-color removes the gray flash on tap. */
+      html {
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      body {
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior-y: none;
+      }
+      /* iOS zooms inputs whose computed font-size is < 16px. Floor every
+         text-entry to 16px so focus never triggers an auto-zoom. */
+      input,
+      select,
+      textarea {
+        font-size: max(16px, 1em);
+      }
+    </style>
   </head>
   <body>
     <!-- quasar:entry-point -->
+    <script>
+      // Service worker registration (PWA).
+      // Wrapped in feature checks; failures are logged but never block app boot.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .catch(function (err) {
+              console.warn('[Vigilant] SW registration failed:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
