@@ -61,6 +61,10 @@
       body {
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: none;
+        /* Respect the iPhone home-indicator + notch when launched as a
+           standalone PWA so the bottom-nav and content don't sit under them. */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
       }
       /* iOS zooms inputs whose computed font-size is < 16px. Floor every
          text-entry to 16px so focus never triggers an auto-zoom. */

@@ -9,15 +9,22 @@
         <!-- Single feed view -->
         <template v-if="viewMode === 'single'">
           <!-- Demo mode: YouTube iframe, video file, or static image. Real mode: <img> for MJPEG. -->
-          <iframe
+          <!-- YouTube iframe is wrapped so we can apply the chrome-hiding
+               overscan trick: the iframe is grown beyond the visible frame
+               and the wrapper clips the title bar / share button / controls. -->
+          <div
             v-if="streamingActive && demoIsYoutube"
-            class="video-element"
-            :class="{ 'video-glow': streamingActive }"
-            :src="youtubeEmbedUrl"
-            frameborder="0"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen
-          />
+            class="video-element youtube-frame"
+          >
+            <iframe
+              class="youtube-frame__iframe"
+              :class="{ 'video-glow': streamingActive }"
+              :src="youtubeEmbedUrl"
+              frameborder="0"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowfullscreen
+            />
+          </div>
           <video
             v-else-if="streamingActive && demoIsVideo"
             ref="demoVideoEl"
@@ -611,8 +618,9 @@ const demoIsYoutube = computed(() => {
 const youtubeEmbedUrl = computed(() => {
   const id = youtubeIdFromUrl(settingsStore.demoLiveStreamUrl);
   if (!id) return '';
-  // autoplay + mute (required by browsers for autoplay), no controls/branding,
-  // loop the same id as a fallback in case the live stream ends.
+  // Strip what YouTube still honors via query params; the rest (title bar,
+  // "Watch on YouTube" pill) is killed by the .youtube-frame__iframe overscan
+  // CSS that grows the iframe past the wrapper's overflow:hidden.
   const params = new URLSearchParams({
     autoplay: '1',
     mute: '1',
@@ -620,6 +628,9 @@ const youtubeEmbedUrl = computed(() => {
     playsinline: '1',
     modestbranding: '1',
     rel: '0',
+    iv_load_policy: '3',
+    disablekb: '1',
+    fs: '0',
     loop: '1',
     playlist: id,
   });
@@ -1172,6 +1183,43 @@ onBeforeRouteLeave((to, from, next) => {
   box-shadow: 0 0 30px rgba(66, 133, 244, 0.2);
 }
 
+/*
+ * YouTube chrome killer.
+ *
+ * URL params (controls=0, modestbranding=1, etc.) hide some chrome but the
+ * top title bar and the share / "Watch on YouTube" pill at the bottom-right
+ * always reappear on hover, click, or in standalone PWA mode. The reliable
+ * fix is overscan: grow the iframe well past the wrapper bounds so the
+ * chrome falls outside the visible area, then clip with overflow:hidden on
+ * the wrapper. pointer-events:none keeps the user from triggering the
+ * chrome on tap (and prevents accidental pause).
+ */
+.youtube-frame {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.youtube-frame__iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(100% + 220px);
+  height: calc(100% + 240px);
+  transform: translate(-50%, -50%);
+  border: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 599px) {
+  // Smaller viewport = smaller chrome height; a smaller overscan looks
+  // proportionally similar without distorting the visible video too much.
+  .youtube-frame__iframe {
+    width: calc(100% + 120px);
+    height: calc(100% + 140px);
+  }
+}
+
 .video-container--mosaic {
   background: #050208;
 }
@@ -1331,6 +1379,7 @@ onBeforeRouteLeave((to, from, next) => {
   opacity: 0;
 }
 
+// Default (>= md): controls float over the bottom of the video as before.
 .overlay-controls {
   position: absolute;
   bottom: 20px;
@@ -1341,6 +1390,21 @@ onBeforeRouteLeave((to, from, next) => {
   align-items: center;
   flex-wrap: wrap;
   z-index: 4;
+}
+
+// Below md (tablets + phones): float-controls don't fit comfortably (8 round
+// buttons + chip wrap to 2-3 rows and overlap the YouTube chrome / video
+// content). Render as a proper toolbar below the video instead — same
+// buttons, no overlap, no dead space.
+@media (max-width: 1023px) {
+  .overlay-controls {
+    position: static;
+    margin: 12px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+  }
 }
 
 .status-chip {
