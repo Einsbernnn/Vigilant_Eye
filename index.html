@@ -16,7 +16,11 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#4c065c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- "default" gives the iOS status bar its own opaque background and
+         keeps app content below it. "black-translucent" makes the bar
+         transparent, which requires every fixed-positioned header to
+         manually pad for env(safe-area-inset-top) — too easy to get wrong. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Vigilant" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
@@ -61,10 +65,22 @@
       body {
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: none;
-        /* Respect the iPhone home-indicator + notch when launched as a
-           standalone PWA so the bottom-nav and content don't sit under them. */
+      }
+      /* Quasar's q-header / q-footer use position: fixed, so body padding
+         can't push them clear of iOS's notch + home indicator. Pad the
+         fixed bars themselves. The status-bar-style is "default" so iOS
+         already pushes the viewport down past the status bar in portrait,
+         but env(safe-area-inset-top) on q-header still matters in
+         landscape (notch on the side). */
+      .q-header {
         padding-top: env(safe-area-inset-top);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      .q-footer {
         padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
       }
       /* iOS zooms inputs whose computed font-size is < 16px. Floor every
          text-entry to 16px so focus never triggers an auto-zoom. */
