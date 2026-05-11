@@ -1,0 +1,52 @@
+name: CI
+
+# Runs on every push to a tracked branch and on every PR. Vercel still owns
+# the actual deploy via its GitHub integration; this workflow exists as a
+# pre-flight safety net so a broken commit fails fast in CI before (or in
+# parallel with) the Vercel build.
+on:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - development
+      - main
+
+# A new push to the same branch cancels any in-progress run. Saves CI
+# minutes when you push a fixup commit on top of a still-running build.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        # npm ci is faster + reproducible from package-lock vs `npm install`.
+        run: npm ci
+
+      - name: Lint (ESLint over .js/.ts/.vue)
+        run: npm run lint
+
+      - name: Type-check (vue-tsc)
+        run: npx vue-tsc --noEmit -p tsconfig.vue-tsc.json
+
+      - name: Build (Quasar SPA)
+        # The same command Vercel runs. Catches any prod-only build issue
+        # (e.g. SCSS that compiles in dev but not under Vite's prod pipeline).
+        run: npm run build

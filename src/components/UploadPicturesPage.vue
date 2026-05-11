@@ -252,7 +252,7 @@
               >
                 <q-badge
                   v-if="settingsStore.demoMode"
-                  color="purple"
+                  color="accent"
                   text-color="white"
                   class="demo-pill"
                 >
@@ -355,7 +355,7 @@
               <q-card class="image-card dataset-card">
                 <q-badge
                   v-if="settingsStore.demoMode"
-                  color="purple"
+                  color="accent"
                   text-color="white"
                   class="demo-pill"
                 >
@@ -1493,8 +1493,8 @@ const runTestRecognition = async () => {
   gap: 10px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(156, 39, 176, 0.06);
-  border: 1px solid rgba(156, 39, 176, 0.2);
+  background: rgba(var(--vigilant-accent-rgb), 0.06);
+  border: 1px solid rgba(var(--vigilant-accent-rgb), 0.2);
   min-width: 0;
 }
 
@@ -1541,7 +1541,7 @@ const runTestRecognition = async () => {
 .folder-card:hover,
 .dataset-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(156, 39, 176, 0.4);
+  border-color: rgba(var(--vigilant-accent-rgb), 0.4);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
@@ -1712,8 +1712,8 @@ const runTestRecognition = async () => {
 .identity-detail__header {
   background: linear-gradient(
     135deg,
-    var(--vigilant-purple-2, #4c065c),
-    var(--vigilant-purple-1, #6a1b9a)
+    var(--vigilant-accent-dark),
+    var(--q-accent)
   );
   color: #fff;
 }
@@ -1789,7 +1789,7 @@ const runTestRecognition = async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 2px dashed rgba(156, 39, 176, 0.5);
+  border: 2px dashed rgba(var(--vigilant-accent-rgb), 0.5);
   border-radius: 10px;
   padding: 24px;
   cursor: pointer;
@@ -1798,8 +1798,8 @@ const runTestRecognition = async () => {
 }
 
 .test-recog-drop:hover {
-  background: rgba(156, 39, 176, 0.08);
-  border-color: rgba(156, 39, 176, 0.7);
+  background: rgba(var(--vigilant-accent-rgb), 0.08);
+  border-color: rgba(var(--vigilant-accent-rgb), 0.7);
 }
 
 .test-recog-drop--has {
@@ -1815,8 +1815,8 @@ const runTestRecognition = async () => {
 .test-recog-result {
   padding: 16px;
   border-radius: 10px;
-  background: rgba(156, 39, 176, 0.12);
-  border: 1px solid rgba(156, 39, 176, 0.3);
+  background: rgba(var(--vigilant-accent-rgb), 0.12);
+  border: 1px solid rgba(var(--vigilant-accent-rgb), 0.3);
 }
 
 .test-recog-result__avatar {

@@ -201,7 +201,7 @@ const scrollToFeatures = () => {
   min-height: 100vh;
   background: radial-gradient(
       ellipse at top,
-      rgba(76, 6, 92, 0.6),
+      rgba(var(--vigilant-accent-dark-rgb), 0.6),
       transparent 60%
     ),
     linear-gradient(180deg, #1a0529 0%, #0c0218 100%);
@@ -228,21 +228,21 @@ const scrollToFeatures = () => {
   height: 480px;
   top: -120px;
   left: -120px;
-  background: #6a1b9a;
+  background: var(--q-accent);
 }
 .orb-2 {
   width: 380px;
   height: 380px;
   top: 35%;
   right: -100px;
-  background: #c2185b;
+  background: var(--vigilant-accent-dark);
 }
 .orb-3 {
   width: 300px;
   height: 300px;
   bottom: -80px;
   left: 30%;
-  background: #4c065c;
+  background: var(--vigilant-accent-dark);
 }
 
 .landing-header,
@@ -316,9 +316,9 @@ const scrollToFeatures = () => {
   width: 360px;
   height: 360px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #2a0a3d, #4c065c);
+  background: linear-gradient(135deg, var(--vigilant-accent-dark), var(--q-accent));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 30px 80px rgba(76, 6, 92, 0.5);
+  box-shadow: 0 30px 80px rgba(var(--vigilant-accent-dark-rgb), 0.5);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -347,7 +347,7 @@ const scrollToFeatures = () => {
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  border: 2px solid rgba(194, 24, 91, 0.6);
+  border: 2px solid rgba(var(--vigilant-accent-rgb), 0.6);
   animation: pulse 2.5s infinite ease-out;
 }
 
@@ -408,7 +408,7 @@ const scrollToFeatures = () => {
 
 .feature-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(194, 24, 91, 0.6);
+  border-color: rgba(var(--vigilant-accent-rgb), 0.6);
 }
 
 .feature-title {
@@ -450,7 +450,7 @@ const scrollToFeatures = () => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #c2185b, #6a1b9a);
+  background: linear-gradient(135deg, var(--vigilant-accent-dark), var(--q-accent));
   display: flex;
   align-items: center;
   justify-content: center;

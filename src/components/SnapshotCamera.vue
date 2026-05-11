@@ -863,7 +863,7 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   background: radial-gradient(
       ellipse at top,
-      rgba(76, 6, 92, 0.4),
+      rgba(var(--vigilant-accent-dark-rgb), 0.4),
       transparent 60%
     ),
     linear-gradient(180deg, #1a0529 0%, #0c0218 100%);
@@ -888,8 +888,8 @@ onBeforeUnmount(() => {
 .snap-capture__header {
   background: linear-gradient(
     135deg,
-    rgba(76, 6, 92, 0.4),
-    rgba(106, 27, 154, 0.3)
+    rgba(var(--vigilant-accent-dark-rgb), 0.4),
+    rgba(var(--vigilant-accent-rgb), 0.3)
   );
 }
 
@@ -898,7 +898,7 @@ onBeforeUnmount(() => {
 }
 
 .snap-bright-tip {
-  background: linear-gradient(135deg, #ad1457, #6a1b9a);
+  background: linear-gradient(135deg, var(--vigilant-accent-dark), var(--q-accent));
   color: #fff;
   font-size: 0.85rem;
 }
@@ -1029,7 +1029,7 @@ onBeforeUnmount(() => {
 }
 
 .snap-btn-active {
-  background: rgba(156, 39, 176, 0.18);
+  background: rgba(var(--vigilant-accent-rgb), 0.18);
 }
 
 .thumbs-grid {

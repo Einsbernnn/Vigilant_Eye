@@ -166,6 +166,6 @@ a {
 }
 
 .bg-gradient {
-  background: linear-gradient(135deg, #341050, #4c065c);
+  background: linear-gradient(135deg, var(--vigilant-accent-dark), var(--q-accent));
 }
 </style>

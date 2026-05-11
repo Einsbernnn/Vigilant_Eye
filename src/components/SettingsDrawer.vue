@@ -647,8 +647,8 @@ const runDiagnostics = async () => {
 .settings-card__header {
   background: linear-gradient(
     135deg,
-    var(--vigilant-purple-2, #4c065c),
-    var(--vigilant-purple-1, #6a1b9a)
+    var(--vigilant-accent-dark),
+    var(--q-accent)
   );
   color: #fff;
 }
