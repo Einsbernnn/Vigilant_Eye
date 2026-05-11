@@ -87,8 +87,8 @@ const keyParts = (key: string): string[] => {
 <style lang="scss" scoped>
 .shortcuts-card {
   width: min(560px, 96vw);
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 .shortcuts-group {
@@ -99,7 +99,7 @@ const keyParts = (key: string): string[] => {
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.08em;
-  color: rgba(244, 238, 249, 0.55);
+  color: var(--vigilant-text-dim);
   margin-bottom: 8px;
 }
 
@@ -113,7 +113,7 @@ const keyParts = (key: string): string[] => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--vigilant-border);
   font-size: 0.9rem;
 }
 

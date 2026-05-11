@@ -640,8 +640,8 @@ const runDiagnostics = async () => {
   max-width: 100vw;
   height: 100vh;
   border-radius: 0;
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 .settings-card__header {
@@ -650,11 +650,13 @@ const runDiagnostics = async () => {
     var(--vigilant-accent-dark),
     var(--q-accent)
   );
+  // Header is always a saturated accent gradient, so white text reads in
+  // both modes.
   color: #fff;
 }
 
 :deep(.q-item-label--header) {
-  color: rgba(244, 238, 249, 0.6);
+  color: var(--vigilant-text-dim);
   letter-spacing: 0.08em;
   font-size: 0.75rem;
   display: flex;
@@ -662,7 +664,16 @@ const runDiagnostics = async () => {
 }
 
 :deep(.q-item) {
-  color: #f3eafa;
+  color: var(--vigilant-text);
+}
+
+:deep(.q-item__label--caption),
+:deep(.q-item-label--caption) {
+  color: var(--vigilant-text-dim);
+}
+
+:deep(.q-separator) {
+  background: var(--vigilant-border);
 }
 
 .accent-swatch {
@@ -680,8 +691,10 @@ const runDiagnostics = async () => {
 }
 
 .accent-swatch--active {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  // Ring uses --vigilant-text so it's visible in both modes (dark ring on
+  // light bg, light ring on dark bg).
+  border-color: var(--vigilant-text);
+  box-shadow: 0 0 0 2px rgba(var(--vigilant-accent-rgb), 0.25);
 }
 
 .diag-results {
@@ -697,7 +710,8 @@ const runDiagnostics = async () => {
   gap: 8px;
   padding: 6px 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--vigilant-surface-strong);
+  border: 1px solid var(--vigilant-border);
   font-size: 0.8rem;
 }
 
@@ -707,7 +721,7 @@ const runDiagnostics = async () => {
 
 .diag-row__value {
   text-align: right;
-  color: rgba(244, 238, 249, 0.65);
+  color: var(--vigilant-text-dim);
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
   font-size: 0.75rem;
 }
@@ -719,7 +733,7 @@ const runDiagnostics = async () => {
   color: #ff5252;
 }
 .diag-row--pending :deep(.q-icon) {
-  color: rgba(244, 238, 249, 0.5);
+  color: var(--vigilant-text-muted);
 }
 
 @media (max-width: 599px) {
