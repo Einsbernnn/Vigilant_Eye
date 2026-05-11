@@ -569,7 +569,15 @@ async function setFirstName() {
   let folderName = '';
   if (folderMode.value === 'new') {
     folderName = nameInput.value.trim();
-    if (!folderName) return;
+    if (!folderName) {
+      folderError.value = 'Please enter a person name to start taking photos.';
+      $q.notify({
+        type: 'warning',
+        message: 'Please enter a person name to start taking photos.',
+        icon: 'person_add',
+      });
+      return;
+    }
     if (settingsStore.demoMode) {
       const taken =
         demoImageFolders.some(
@@ -602,7 +610,15 @@ async function setFirstName() {
     }
   } else {
     folderName = existingFolderChoice.value ?? '';
-    if (!folderName) return;
+    if (!folderName) {
+      folderError.value = 'Please pick an existing folder to add photos to.';
+      $q.notify({
+        type: 'warning',
+        message: 'Please pick an existing folder to add photos to.',
+        icon: 'folder_open',
+      });
+      return;
+    }
   }
   firstName.value = folderName;
 }
