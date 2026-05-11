@@ -1163,15 +1163,25 @@ onBeforeRouteLeave((to, from, next) => {
 @media (min-width: 1024px) {
   .stream-wrapper {
     margin: auto 0;
+    // flex-start (not stretch) keeps each child at its own intrinsic
+    // height. Otherwise a tall notification panel — when filter chips wrap
+    // or notifications stack up — drags the video container taller with it.
+    align-items: flex-start;
   }
+  // Lock the video frame to a fixed size on desktop so it never stretches
+  // when notifications overflow. The notification panel matches the same
+  // height and scrolls its inner list internally.
   .video-element,
   .mosaic-grid,
   .placeholder-panel {
-    min-height: min(560px, 68vh);
+    height: min(560px, 68vh);
+    max-height: none;
+    min-height: 0;
   }
   .notification-panel-container {
-    min-height: min(560px, 68vh);
-    max-height: min(560px, 68vh);
+    height: min(560px, 68vh);
+    max-height: none;
+    min-height: 0;
   }
 }
 
