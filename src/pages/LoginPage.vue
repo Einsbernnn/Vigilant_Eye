@@ -82,6 +82,26 @@
           {{ errorMessage }}
         </q-banner>
 
+        <div class="row items-center q-my-md demo-divider">
+          <div class="col" />
+          <div class="col-auto q-px-sm text-caption text-grey-6">OR</div>
+          <div class="col" />
+        </div>
+
+        <q-btn
+          outline
+          color="accent"
+          label="Continue as Demo"
+          icon="science"
+          class="full-width"
+          size="md"
+          :disable="isLoading"
+          @click="handleDemoLogin"
+        />
+        <div class="text-center text-caption text-grey-6 q-mt-xs">
+          Skip login and explore with mock data — no backend required.
+        </div>
+
         <div class="text-center q-mt-lg">
           <span class="text-grey-6">Don't have an account? </span>
           <a href="#" class="text-accent">Sign up</a>
@@ -95,6 +115,7 @@
 import { ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useUserStore } from 'src/stores/userStore';
+import { useSettingsStore } from 'src/stores/settingsStore';
 import { useRouter } from 'vue-router';
 
 const $q = useQuasar();
@@ -105,7 +126,19 @@ const showPassword = ref(false);
 const errorMessage = ref('');
 const isLoading = ref(false);
 const userStore = useUserStore();
+const settingsStore = useSettingsStore();
 const router = useRouter();
+
+const handleDemoLogin = () => {
+  settingsStore.updateDemoMode(true);
+  userStore.loginAsDemo();
+  $q.notify({
+    type: 'info',
+    message: 'Signed in as Demo — using mock data, no backend required.',
+    icon: 'science',
+  });
+  router.push('/live-stream');
+};
 
 const handleLogin: () => Promise<void> = async () => {
   isLoading.value = true;
@@ -167,5 +200,12 @@ a {
 
 .bg-gradient {
   background: linear-gradient(135deg, var(--vigilant-accent-dark), var(--q-accent));
+}
+
+.demo-divider {
+  .col {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.12);
+  }
 }
 </style>

@@ -14,6 +14,10 @@ export const useUserStore = defineStore('user', {
       }
       return false;
     },
+    loginAsDemo() {
+      this.username = 'demo';
+      this.isAuthenticated = true;
+    },
     logout() {
       this.username = '';
       this.isAuthenticated = false;
