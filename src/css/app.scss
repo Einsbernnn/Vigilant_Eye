@@ -1,37 +1,144 @@
-// app global css in SCSS form
+// =============================================================================
+// Vigilant Eye — design tokens
+// =============================================================================
 //
-// Accent theming: every accent-tinted surface in the app reads from these CSS
-// variables instead of hardcoding a hex. The Settings drawer's color picker
-// writes a new palette to document.documentElement.style at runtime, which
-// instantly retints all gradients, badges, hover states, and overlays.
+// This file establishes the design system. Three layers:
 //
-//   --q-accent           main color (used by Quasar's color="accent")
-//   --vigilant-accent-dark   darker shade for gradient bottoms / deep bgs
-//   --vigilant-accent-rgb    RGB triplet for rgba(..., alpha) overlays
-//   --vigilant-accent-dark-rgb  same, for dark-shade overlays
+//  1. ACCENT (interactive): bold colors for buttons, focus rings, badges.
+//     Driven by settingsStore.applyAccent() per user choice. The accent
+//     appears ONLY on things the user touches.
 //
-// Defaults below are the violet preset; settingsStore.applyAccent() overwrites
-// them at boot via syncAccentToDom() to honor the user's saved preference.
+//  2. ATMOSPHERE (page background): a tonal — same-hue, heavily-desaturated
+//     — shade of the accent. So when accent = violet the page has a barely-
+//     perceptible lavender warmth; accent = teal and the page leans cool.
+//     The page bg also carries two soft accent halos near the top to give
+//     the room a "warm spot" without painting the whole canvas in color.
+//
+//  3. ELEVATION (cards / panels / modals): mode-driven solid surfaces.
+//     Pure white in light mode, lifted alpha-white in dark mode. NO accent
+//     tint on cards — content reads cleanly regardless of accent. Elevation
+//     hierarchy is communicated via shadow + border tokens, not color.
+//
+// To change the look, edit the tokens here. Components should consume the
+// token variables rather than hardcoding hex / rgba values.
+// =============================================================================
 
 :root {
+  // ---- Accent (overridden by settingsStore.applyAccent()) ----
   --q-accent: #9c27b0;
   --q-color-accent: var(--q-accent);
   --vigilant-accent-dark: #4c065c;
   --vigilant-accent-rgb: 156, 39, 176;
   --vigilant-accent-dark-rgb: 76, 6, 92;
 
-  --vigilant-bg: #0c0218;
-  --vigilant-surface: rgba(255, 255, 255, 0.04);
-  --vigilant-surface-strong: rgba(255, 255, 255, 0.08);
-  --vigilant-text-dim: rgba(244, 238, 249, 0.7);
+  // ---- Atmosphere (overridden by settingsStore.applyAccent()) ----
+  // Defaults match the violet preset.
+  --vigilant-bg-light: #f7f4f8;
+  --vigilant-bg-light-deep: #ede8ef;
+  --vigilant-bg-dark: #131015;
+  --vigilant-bg-dark-deep: #08070a;
+
+  // ---- Active mode tokens (light by default; .body--dark flips them) ----
+  --vigilant-bg: var(--vigilant-bg-light);
+  --vigilant-bg-deep: var(--vigilant-bg-light-deep);
+
+  // Elevation surfaces — pure white on light, no accent cast.
+  --vigilant-surface: #ffffff;
+  --vigilant-surface-strong: #ffffff;
+  --vigilant-surface-raised: #ffffff;
+
+  // Borders + shadows form the elevation hierarchy in light mode.
+  --vigilant-border: rgba(15, 12, 20, 0.08);
+  --vigilant-border-strong: rgba(15, 12, 20, 0.14);
+  --vigilant-shadow-sm: 0 1px 2px rgba(15, 12, 20, 0.05);
+  --vigilant-shadow-md:
+    0 1px 3px rgba(15, 12, 20, 0.07),
+    0 1px 2px rgba(15, 12, 20, 0.05);
+  --vigilant-shadow-lg:
+    0 8px 24px rgba(15, 12, 20, 0.08),
+    0 2px 6px rgba(15, 12, 20, 0.05);
+
+  // Text — ink-black with the faintest accent undertone for warmth.
+  --vigilant-text: #0f0c14;
+  --vigilant-text-dim: rgba(15, 12, 20, 0.62);
+  --vigilant-text-muted: rgba(15, 12, 20, 0.4);
+
+  // Halo intensity — controls how much accent color appears in the page bg.
+  // Light mode stays subtle (low alpha) so the bg remains airy.
+  --vigilant-halo-primary: 0.07;
+  --vigilant-halo-secondary: 0.04;
 }
 
 body.body--dark {
-  background: var(--vigilant-bg);
+  // Active mode tokens flip to dark.
+  --vigilant-bg: var(--vigilant-bg-dark);
+  --vigilant-bg-deep: var(--vigilant-bg-dark-deep);
+
+  // Dark-mode surfaces use translucent white so they auto-adopt the bg's
+  // hue tint (which gives violet-bg + violet-surface coherence without
+  // requiring per-preset surface colors).
+  --vigilant-surface: rgba(255, 255, 255, 0.045);
+  --vigilant-surface-strong: rgba(255, 255, 255, 0.075);
+  --vigilant-surface-raised: rgba(255, 255, 255, 0.11);
+
+  --vigilant-border: rgba(255, 255, 255, 0.07);
+  --vigilant-border-strong: rgba(255, 255, 255, 0.13);
+  --vigilant-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --vigilant-shadow-md:
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  --vigilant-shadow-lg:
+    0 12px 32px rgba(0, 0, 0, 0.55),
+    0 4px 8px rgba(0, 0, 0, 0.35);
+
+  --vigilant-text: #f1ecf5;
+  --vigilant-text-dim: rgba(241, 236, 245, 0.7);
+  --vigilant-text-muted: rgba(241, 236, 245, 0.45);
+
+  // Dark mode tolerates more halo presence — the surrounding bg is much
+  // darker so the accent reads as a glow rather than a wash.
+  --vigilant-halo-primary: 0.18;
+  --vigilant-halo-secondary: 0.1;
 }
 
-// Shared demo-mode banner used on multiple pages (Saved Videos, Upload,
-// Snap Shot). Re-tints with the accent automatically.
+// =============================================================================
+// Page background
+// =============================================================================
+//
+// Composition (bottom to top in stacking order):
+//   1. Solid base (--vigilant-bg)
+//   2. Soft top→bottom horizon gradient to --vigilant-bg-deep
+//   3. Primary accent halo at top-right
+//   4. Secondary accent halo at top-left (smaller, fainter)
+//
+// All gradients are accent-aware via the rgb token so changing accent
+// retints the entire atmosphere in one stroke.
+
+body {
+  background-color: var(--vigilant-bg);
+  background-image:
+    radial-gradient(
+      ellipse 70% 50% at 85% -5%,
+      rgba(var(--vigilant-accent-rgb), var(--vigilant-halo-primary)),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 55% 40% at 15% 8%,
+      rgba(var(--vigilant-accent-rgb), var(--vigilant-halo-secondary)),
+      transparent 60%
+    ),
+    linear-gradient(180deg, transparent 0%, var(--vigilant-bg-deep) 100%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--vigilant-text);
+  min-height: 100vh;
+}
+
+// =============================================================================
+// Shared utility classes
+// =============================================================================
+
+// Demo-mode banner — appears on multiple pages. Re-tints with accent.
 .vigilant-demo-banner {
   background: linear-gradient(
     135deg,

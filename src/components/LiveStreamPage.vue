@@ -1143,6 +1143,9 @@ onBeforeRouteLeave((to, from, next) => {
 .live-page {
   max-width: 1400px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .stream-wrapper {
@@ -1150,6 +1153,36 @@ onBeforeRouteLeave((to, from, next) => {
   gap: 20px;
   align-items: stretch;
   flex-wrap: wrap;
+  width: 100%;
+}
+
+// Desktop: q-page already gives us viewport-minus-header height. Use
+// auto-margins on the wrapper to absorb leftover vertical space evenly
+// instead of dumping it all below the content. Bumping min-heights keeps
+// the centered block from looking tiny on a 1080p+ display.
+@media (min-width: 1024px) {
+  .stream-wrapper {
+    margin: auto 0;
+    // flex-start (not stretch) keeps each child at its own intrinsic
+    // height. Otherwise a tall notification panel — when filter chips wrap
+    // or notifications stack up — drags the video container taller with it.
+    align-items: flex-start;
+  }
+  // Lock the video frame to a fixed size on desktop so it never stretches
+  // when notifications overflow. The notification panel matches the same
+  // height and scrolls its inner list internally.
+  .video-element,
+  .mosaic-grid,
+  .placeholder-panel {
+    height: min(560px, 68vh);
+    max-height: none;
+    min-height: 0;
+  }
+  .notification-panel-container {
+    height: min(560px, 68vh);
+    max-height: none;
+    min-height: 0;
+  }
 }
 
 .video-container {
@@ -1421,8 +1454,9 @@ onBeforeRouteLeave((to, from, next) => {
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: rgba(12, 2, 24, 0.9);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: var(--vigilant-surface);
+  border: 1px solid var(--vigilant-border);
+  box-shadow: var(--vigilant-shadow-lg);
   padding: 16px;
   gap: 12px;
   max-height: 70vh;
@@ -1432,7 +1466,7 @@ onBeforeRouteLeave((to, from, next) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #f3eafa;
+  color: var(--vigilant-text);
 }
 
 .notif-search {
@@ -1449,7 +1483,7 @@ onBeforeRouteLeave((to, from, next) => {
   flex: 1;
   overflow-y: auto;
   padding: 4px;
-  background: rgba(0, 0, 0, 0.25);
+  background: transparent;
   border-radius: 8px;
   min-height: 200px;
 }
@@ -1457,9 +1491,10 @@ onBeforeRouteLeave((to, from, next) => {
 .notification-item {
   padding: 8px 10px;
   margin-bottom: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--vigilant-surface-strong);
+  border: 1px solid var(--vigilant-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--vigilant-text);
   font-size: 0.82rem;
   line-height: 1.35;
   display: flex;
@@ -1515,8 +1550,8 @@ onBeforeRouteLeave((to, from, next) => {
 
 .snap-dialog-card {
   width: min(520px, 96vw);
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 @media (max-width: 1023px) {

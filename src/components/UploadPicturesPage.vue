@@ -1705,8 +1705,8 @@ const runTestRecognition = async () => {
   max-width: 100vw;
   height: 100vh;
   border-radius: 0;
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 .identity-detail__header {
@@ -1728,8 +1728,9 @@ const runTestRecognition = async () => {
 .identity-stat {
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--vigilant-surface);
+  border: 1px solid var(--vigilant-border);
+  box-shadow: var(--vigilant-shadow-sm);
   text-align: center;
 }
 
@@ -1742,7 +1743,7 @@ const runTestRecognition = async () => {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgba(244, 238, 249, 0.55);
+  color: var(--vigilant-text-dim);
 }
 
 .identity-section {
@@ -1753,7 +1754,7 @@ const runTestRecognition = async () => {
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.08em;
-  color: rgba(244, 238, 249, 0.55);
+  color: var(--vigilant-text-dim);
   margin-bottom: 8px;
 }
 
@@ -1768,7 +1769,7 @@ const runTestRecognition = async () => {
   background-size: cover;
   background-position: center;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--vigilant-border);
 }
 
 @media (max-width: 599px) {
@@ -1780,8 +1781,8 @@ const runTestRecognition = async () => {
 // ---- Test Recognition dialog ----
 .test-recog-card {
   width: min(560px, 96vw);
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 .test-recog-drop {
