@@ -1143,6 +1143,9 @@ onBeforeRouteLeave((to, from, next) => {
 .live-page {
   max-width: 1400px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .stream-wrapper {
@@ -1150,6 +1153,26 @@ onBeforeRouteLeave((to, from, next) => {
   gap: 20px;
   align-items: stretch;
   flex-wrap: wrap;
+  width: 100%;
+}
+
+// Desktop: q-page already gives us viewport-minus-header height. Use
+// auto-margins on the wrapper to absorb leftover vertical space evenly
+// instead of dumping it all below the content. Bumping min-heights keeps
+// the centered block from looking tiny on a 1080p+ display.
+@media (min-width: 1024px) {
+  .stream-wrapper {
+    margin: auto 0;
+  }
+  .video-element,
+  .mosaic-grid,
+  .placeholder-panel {
+    min-height: min(560px, 68vh);
+  }
+  .notification-panel-container {
+    min-height: min(560px, 68vh);
+    max-height: min(560px, 68vh);
+  }
 }
 
 .video-container {
