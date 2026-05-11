@@ -1444,8 +1444,9 @@ onBeforeRouteLeave((to, from, next) => {
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: rgba(12, 2, 24, 0.9);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: var(--vigilant-surface);
+  border: 1px solid var(--vigilant-border);
+  box-shadow: var(--vigilant-shadow-lg);
   padding: 16px;
   gap: 12px;
   max-height: 70vh;
@@ -1455,7 +1456,7 @@ onBeforeRouteLeave((to, from, next) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #f3eafa;
+  color: var(--vigilant-text);
 }
 
 .notif-search {
@@ -1472,7 +1473,7 @@ onBeforeRouteLeave((to, from, next) => {
   flex: 1;
   overflow-y: auto;
   padding: 4px;
-  background: rgba(0, 0, 0, 0.25);
+  background: transparent;
   border-radius: 8px;
   min-height: 200px;
 }
@@ -1480,9 +1481,10 @@ onBeforeRouteLeave((to, from, next) => {
 .notification-item {
   padding: 8px 10px;
   margin-bottom: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--vigilant-surface-strong);
+  border: 1px solid var(--vigilant-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--vigilant-text);
   font-size: 0.82rem;
   line-height: 1.35;
   display: flex;
@@ -1538,8 +1540,8 @@ onBeforeRouteLeave((to, from, next) => {
 
 .snap-dialog-card {
   width: min(520px, 96vw);
-  background: var(--vigilant-bg, #0c0218);
-  color: #f3eafa;
+  background: var(--vigilant-bg);
+  color: var(--vigilant-text);
 }
 
 @media (max-width: 1023px) {

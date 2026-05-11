@@ -876,14 +876,11 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .snap-page {
+  // Background + text color now come from the shared body styling in
+  // app.scss so Snap Shot matches Live Stream / Media Library / Face
+  // Recognition in both light and dark mode.
   min-height: 100vh;
-  background: radial-gradient(
-      ellipse at top,
-      rgba(var(--vigilant-accent-dark-rgb), 0.4),
-      transparent 60%
-    ),
-    linear-gradient(180deg, #1a0529 0%, #0c0218 100%);
-  color: #f3eafa;
+  color: var(--vigilant-text);
   padding: 24px;
 }
 
@@ -893,11 +890,11 @@ onBeforeUnmount(() => {
 }
 
 .snap-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f3eafa;
+  background: var(--vigilant-surface);
+  border: 1px solid var(--vigilant-border);
+  color: var(--vigilant-text);
   border-radius: 16px;
-  backdrop-filter: blur(8px);
+  box-shadow: var(--vigilant-shadow-md);
   overflow: hidden;
 }
 
@@ -920,9 +917,9 @@ onBeforeUnmount(() => {
 }
 
 .snap-options {
-  background: rgba(0, 0, 0, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--vigilant-surface-strong);
+  border-top: 1px solid var(--vigilant-border);
+  border-bottom: 1px solid var(--vigilant-border);
 }
 
 .snap-options__row {
@@ -944,7 +941,7 @@ onBeforeUnmount(() => {
 
 .snap-option__hint {
   font-size: 0.7rem;
-  color: rgba(244, 238, 249, 0.55);
+  color: var(--vigilant-text-dim);
   margin-left: 32px;
 }
 

@@ -845,11 +845,12 @@
 
 .card-actions {
   padding: 4px 12px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--vigilant-border);
 }
 
 .library-list {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--vigilant-surface);
+  border: 1px solid var(--vigilant-border);
   border-radius: 8px;
 }
 
